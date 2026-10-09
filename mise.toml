@@ -1,0 +1,41 @@
+# rigpa's toolchain on the Mac. The project owns its Qt: `mise run qt` installs the exact Qt that
+# vip's Ubuntu 26.04 ships (6.10.2) into .qt/, so a `brew upgrade` can never move it.
+
+[tools]
+"pipx:aqtinstall" = "3.3.0"
+cmake = "4.4.3"
+ninja = "1.13.2"
+
+[env]
+RIGPA_QT_VERSION = "6.10.2"
+RIGPA_QT_DIR = "{{config_root}}/.qt/6.10.2/macos"
+
+[tasks.qt]
+description = "Install the project's own Qt 6.10.2 into .qt/ (aqtinstall)"
+run = """
+if [ -x "$RIGPA_QT_DIR/bin/qmake" ]; then echo "Qt $RIGPA_QT_VERSION is in $RIGPA_QT_DIR"; exit 0; fi
+aqt install-qt mac desktop "$RIGPA_QT_VERSION" clang_64 -m qtvirtualkeyboard --outputdir .qt
+"""
+
+[tasks.configure]
+description = "Configure the mac-debug build"
+run = "cmake --preset mac-debug"
+
+[tasks.build]
+description = "Build rigpa and its tests (mac-debug)"
+depends = ["configure"]
+run = "cmake --build --preset mac-debug"
+
+[tasks.test]
+description = "Run the tests"
+depends = ["build"]
+run = "ctest --preset mac-debug"
+
+[tasks.run]
+description = "Run rigpa (pass a config with -- --config <file>)"
+depends = ["build"]
+run = "build/mac-debug/rigpa.app/Contents/MacOS/rigpa"
+
+[tasks.dev]
+description = "Run namchaind and pedald locally under .dev/ (the dev loop)"
+run = "dev/dev-pedal"

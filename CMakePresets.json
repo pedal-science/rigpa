@@ -1,0 +1,42 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "mac-debug",
+      "inherits": "base",
+      "displayName": "Mac, debug, the project's Qt in .qt/",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/.qt/6.10.2/macos"
+      }
+    },
+    {
+      "name": "mac-release",
+      "inherits": "mac-debug",
+      "displayName": "Mac, release",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "linux-release",
+      "inherits": "base",
+      "displayName": "Linux (the pedal-build container), release, the system Qt",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "mac-debug", "configurePreset": "mac-debug" },
+    { "name": "mac-release", "configurePreset": "mac-release" },
+    { "name": "linux-release", "configurePreset": "linux-release" }
+  ],
+  "testPresets": [
+    { "name": "mac-debug", "configurePreset": "mac-debug", "output": { "outputOnFailure": true } },
+    { "name": "linux-release", "configurePreset": "linux-release", "output": { "outputOnFailure": true },
+      "environment": { "QT_QPA_PLATFORM": "offscreen" } }
+  ]
+}
