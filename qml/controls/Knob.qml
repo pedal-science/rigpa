@@ -17,6 +17,7 @@ Item {
     signal moved(real position)    // touch: where the drag has taken it
     signal released()
     signal pressed()
+    signal reset()                 // a double tap: back to the default
 
     implicitWidth: Math.max(diameter + 24, 116)
     implicitHeight: diameter + 54
@@ -95,7 +96,10 @@ Item {
             }
             onTranslationChanged: if (active) knob.moved(Math.max(0, Math.min(1, startPosition - translation.y / knob.travel)))
         }
-        TapHandler { onTapped: knob.pressed() }
+        TapHandler {
+            onTapped: knob.pressed()
+            onDoubleTapped: knob.reset()
+        }
     }
 
     Text {

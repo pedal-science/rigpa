@@ -169,6 +169,7 @@ Rectangle {
                             onPressed: editor.ring.highlight = cell.index
                             onMoved: (p) => editor.model.setPosition(cell.index, p)
                             onReleased: editor.model.release(cell.index)
+                            onReset: editor.model.resetToDefault(cell.index)
                         }
 
                         Column {

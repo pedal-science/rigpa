@@ -318,6 +318,17 @@ void NodeEditorModel::release(int index)
         send(index);
 }
 
+void NodeEditorModel::resetToDefault(int index)
+{
+    if (index < 0 || index >= m_controls.size())
+        return;
+    const ParamSpec &p = m_controls.at(index).spec;
+    if (p.kind != ParamSpec::Number && !(p.kind == ParamSpec::Option && p.optionsFrom.isEmpty()))
+        return;
+    setValue(index, p.hasDefault ? p.defaultValue : Schema::lowerOf(p));
+    release(index);
+}
+
 void NodeEditorModel::step(int index, int steps)
 {
     if (index < 0 || index >= m_controls.size() || steps == 0)

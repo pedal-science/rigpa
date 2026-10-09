@@ -75,6 +75,8 @@ public:
     // Touch: a knob dragged to `position` (0–1 along its travel), and let go.
     Q_INVOKABLE void setPosition(int index, double position);
     Q_INVOKABLE void release(int index);
+    // A double tap: the parameter's default (the schema's), sent at once.
+    Q_INVOKABLE void resetToDefault(int index);
     // The rotary, while a control is selected: `steps` detents.
     Q_INVOKABLE void step(int index, int steps);
     // A choice or a toggle.

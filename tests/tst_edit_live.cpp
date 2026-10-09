@@ -86,6 +86,14 @@ private slots:
         QCOMPARE(engine.generation(), generation); // ramped in place: nothing was rebuilt
     }
 
+    void doubleTapResetsToTheDefault()
+    {
+        const int bass = controlFor(editor, "bass");
+        editor.resetToDefault(bass);
+        QCOMPARE(editor.valueAt(bass), 0.0); // the tone stack's bass defaults to 0 dB
+        QTRY_COMPARE_WITH_TIMEOUT(nodeOfType(session, "fx.amp.tonestack").value("bass").toDouble(), 0.0, 5000);
+    }
+
     void bypassTakesTheWholeBlock()
     {
         QVERIFY(!session.isBypassed(kAmp));
