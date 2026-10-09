@@ -44,8 +44,10 @@ What exploration established, and what it changes:
 - **The constraint changes.** "The Core host does DSP only; display … belong to the Pico"
   (pedal.project `AGENTS.md`, D2 and about a dozen docs) becomes "the Core host also drives the
   screen (rigpa, core 0); the Pico keeps every physical control". This is recorded as a new
-  decision, and it is gated by a soak, because memory traffic from the housekeeping cores is the
+  decision, and it is gated by a soak, because memory traffic from the housekeeping core is the
   documented way to break the render core (namchain `docs/tuning.md`: `stress-ng --vm` → 5,460 xruns).
+  Since 2026-10-09 there is exactly one housekeeping core (0), and the audio interrupt is no longer
+  on it: it is delivered to core 1, a render core that is never the active one.
 - **namchaind and pedald both run on the Mac.** namchain's `build-mac/` has the null/CoreAudio
   backends, and pedald's UART link just retries. So the Mac dev loop is fully local.
 
@@ -284,8 +286,9 @@ Nothing touches vip before M9. Each step that touches vip waits for your go‑ah
      worst block under 90%, plus a p99 comparison.
    - Record rigpa's PSS and `MemAvailable`.
    - Evidence goes in `pedal.project/bench-results/<date>-rigpa-soak/`.
-   - If it fails, the fallbacks in order are: meters off, fewer animations, `CPUAffinity=0-1`,
-     then a different render path.
+   - If it fails, the fallbacks in order are: meters off, fewer animations, then a lower frame rate
+     or a static screen. `CPUAffinity` is not one of them: with one housekeeping core (0) and cores
+     1–3 rendering, there is no second housekeeping core to move to (2026-10-09).
 5. **V3, when the screen arrives.**
    - Read the HDMI EDID mode and set it in `kms.json`.
    - Set `display.rotation` (90 or 270).

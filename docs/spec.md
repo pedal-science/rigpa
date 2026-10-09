@@ -3,9 +3,11 @@
 The owner's requirements (2026-10-09), organised, with the answers to the questions they raised.
 The plan that builds this is [plan.md](plan.md).
 
-**What rigpa is.** The pedal's own UI, on the Core host's housekeeping core 0 (`CPUAffinity=0`;
-vip's housekeeping set is 0–1, and core 0 also carries the audio DMA interrupt at FIFO 85, which
-preempts rigpa). SCHED_OTHER, never real‑time. Fullscreen on the 1920×480 touchscreen, long side
+**What rigpa is.** The pedal's own UI, on the Core host's one housekeeping core, 0 (`CPUAffinity=0`).
+Since 2026-10-09 the pedal isolates cores 1–3 for rendering and the audio DMA interrupt is delivered
+to core 1 — a render core, never the active one — so it no longer preempts rigpa on core 0
+(`pedal.project/docs/managing-processing-power-and-optimising-for-fast-switching.md`, the rules and
+D5). SCHED_OTHER, never real‑time. Fullscreen on the 1920×480 touchscreen, long side
 horizontal. C++ and Qt 6.10, **Qt Quick for the views only** (QML for layout, gestures,
 animation); protocol, models, layout maths, navigation and settings are C++. Platform `eglfs`
 (eglfs_kms) on vip, `cocoa` on the Mac, `offscreen`/`vnc` for tests and for viewing before the
