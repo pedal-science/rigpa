@@ -97,6 +97,22 @@ private slots:
         QCOMPARE(backed.count(), 1);
     }
 
+    void commandZUndoesShiftCommandZRedoes()
+    {
+        QWindow window;
+        DevInput input;
+        QSignalSpy undo(&input, &DevInput::undoRequested);
+        QSignalSpy redo(&input, &DevInput::redoRequested);
+        QKeyEvent z(QEvent::KeyPress, Qt::Key_Z, Qt::ControlModifier, QStringLiteral("z"));
+        QKeyEvent shiftZ(QEvent::KeyPress, Qt::Key_Z, Qt::ControlModifier | Qt::ShiftModifier, QStringLiteral("Z"));
+        QKeyEvent plainZ(QEvent::KeyPress, Qt::Key_Z, Qt::NoModifier, QStringLiteral("z"));
+        QVERIFY(input.eventFilter(&window, &z));
+        QVERIFY(input.eventFilter(&window, &shiftZ));
+        QVERIFY(!input.eventFilter(&window, &plainZ));
+        QCOMPARE(undo.count(), 1);
+        QCOMPARE(redo.count(), 1);
+    }
+
     void onlyTheWindowsDeliveryCounts()
     {
         QObject item; // an item inside the window sees the same event a second time

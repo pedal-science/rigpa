@@ -62,7 +62,8 @@ Rectangle {
         HeaderButton {
             anchors.verticalCenter: parent.verticalCenter
             label: qsTr("Remove")
-            enabled: false // M7: removing nodes
+            highlighted: editor.active && editor.ring.highlight === editor.model.removeIndex
+            onClicked: editor.model.removeElement()
         }
         Text {
             anchors.centerIn: parent

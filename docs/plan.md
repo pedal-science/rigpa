@@ -6,6 +6,28 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 - **The owner asked (2026-10-09) for M6, M7 and M8 to run on without a review pause each; they
   review after M8.** Also asked for and done: a double tap on a knob resets it to its default.
+- **M7 done (2026-10-09).** Adding, removing, lanes, undo:
+  - The palette (`PaletteModel`, `AddPanel.qml`, the header's +): Amp (a NAM model and a tone
+    stack, one element, as ljoss makes it), Parallel split (two empty lanes), and every engine
+    type that isn't plumbing. A model or IR it needs is the library's first, changed in its
+    editor. It goes in after the selected block (in its lane), else at the end of the first
+    chain, and is selected. New ids are ljoss's: a UUID element, nodes `<element>-<suffix>`.
+  - Remove: the node editor's Remove (now also a stop on its ring, after Close), and the drag
+    trash.
+  - Sections: their editor has Lanes (2–4; fewer takes lanes off the end with what is in them)
+    and, per lane, Level, Mute and Invert. These are ljoss's lane gain: a trailing
+    `nc.gain` `<lane>-gain` with a linear gain (negative inverts, 0 mutes; a muted lane keeps its
+    level and polarity in the node's `meta`), because the mixer's per-port values aren't document
+    fields. The tree hides that node from the lane and writes it back. A lane level streams once
+    the node exists; the first change adds it with an apply.
+  - Undo/redo (`RigSession`): document snapshots, recorded before every edit made here (a run of
+    one parameter is one step); undo and redo apply a snapshot with `rig.apply`. Cleared when
+    another rig is loaded or the rig's name changes. Header buttons and ⌘Z / ⇧⌘Z.
+  - The engine's budget is the cost check: an apply over it is refused (`over_budget`) and the
+    footer says "Too much for the pedal: …"; nothing calls `rig.cost` first.
+  - QML names to avoid: `Palette` (a Qt Quick type) and the id `palette` (every Item's property).
+  - Tests: lane counts and gains, new sections (`tst_edits`); live: lanes and undo/redo, Remove
+    and undo, the palette's every row, Amp refused over budget then accepted; ⌘Z (`tst_devinput`).
 - **M6 done (2026-10-09).** Drag and drop:
   - `RigEdits` (`src/rig/RigEdits.*`): move, insert, take and remove on the editor's tree, and
     the tree written back as an engine document (every node object, chain key and document key
@@ -53,7 +75,7 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 - Earlier: M4 (rig view), M3 (library, browse), P1 (pedald rig API, pedal.project `70a6d35`),
   M2, M1, M0. `dev-pedal` takes `RIGPA_DEV_DIR` and port overrides, so a second back end can run
   beside yours.
-- **Next: M7**, then M8. Nothing touches vip before M9, and M9 starts only with the owner's
+- **Next: M8.** Nothing touches vip before M9, and M9 starts only with the owner's
   go-ahead.
 
 ## Why

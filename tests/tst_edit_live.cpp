@@ -5,7 +5,9 @@
 #include <QtTest>
 
 #include "LiveDaemon.h"
+#include "library/Library.h"
 #include "rig/NodeEditorModel.h"
+#include "rig/PaletteModel.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
@@ -71,7 +73,7 @@ private slots:
         const int bass = controlFor(editor, "bass");
         QVERIFY(bass > 0);
         QVERIFY(editor.bypassable());
-        QCOMPARE(editor.ring()->count(), editor.rowCount() + 2);
+        QCOMPARE(editor.ring()->count(), editor.rowCount() + 3); // Bypass, Close, Remove
         QCOMPARE(editor.valueAt(bass), 1.2);
 
         QTRY_VERIFY(engine.hasStatus());
@@ -147,18 +149,106 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(nodeOfType(session, "fx.filter.cut").value("low_cut").toDouble(), 2000.0, 5000);
     }
 
-    void aSectionHasNothingToAdjustYet()
+    // Dual's section: the number of lanes, and each lane's level, mute and polarity (a gain node
+    // at the lane's end, as ljoss writes it); then undo takes it all back.
+    void sectionLanesAndUndo()
     {
         const QString split = nodeOfType(session, "nc.split").value("element").toString();
         editor.open(split);
         QVERIFY(editor.isOpen());
-        QCOMPARE(editor.rowCount(), 0);
         QVERIFY(!editor.bypassable());
-        QCOMPARE(editor.ring()->count(), 1); // Close
-        QVERIFY(!editor.note().isEmpty());
-        QSignalSpy closing(&editor, &NodeEditorModel::closeRequested);
-        editor.ring()->activated(editor.closeIndex());
-        QCOMPARE(closing.size(), 1);
+        QCOMPARE(editor.rowCount(), 1 + 2 * 3); // Lanes; then Level, Mute, Invert for each lane
+        QCOMPARE(editor.ring()->count(), editor.rowCount() + 2); // Close, Remove
+        QCOMPARE(editor.paramAt(0), QStringLiteral("lanes"));
+        const auto section = [&] { return session.findElement(split); };
+
+        editor.choose(0, 1); // "3"
+        QTRY_COMPARE_WITH_TIMEOUT(section()->lanes.size(), 3, 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        QCOMPARE(nodeOfType(session, "nc.split").value("outputs").toInt(), 3);
+        QCOMPARE(editor.rowCount(), 1 + 3 * 3);
+
+        // Lane 1 to -6 dB: it has no gain node yet, so the first value adds one.
+        editor.setPosition(1, (-6.0 + 40) / 52);
+        editor.release(1);
+        QTRY_VERIFY_WITH_TIMEOUT(section() && !section()->laneGains.value(0).id.isEmpty(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        QVERIFY(qAbs(edits::laneGainOf(*section(), 0).levelDb + 6) < 0.01);
+        // Lane 2 muted.
+        editor.choose(5, 1);
+        QTRY_VERIFY_WITH_TIMEOUT(section() && edits::laneGainOf(*section(), 1).mute, 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+
+        QVERIFY(session.canUndo());
+        session.undo(); // the mute
+        session.undo(); // the level
+        session.undo(); // the third lane
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        session.refresh();
+        QTRY_COMPARE_WITH_TIMEOUT(section()->lanes.size(), 2, 5000);
+        QVERIFY(section()->laneGains.value(0).id.isEmpty());
+        QVERIFY(session.canRedo());
+        session.redo();
+        QTRY_COMPARE_WITH_TIMEOUT(section()->lanes.size(), 3, 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+    }
+
+    void removeFromTheEditor()
+    {
+        const QString cut = nodeOfType(session, "fx.filter.cut").value("element").toString();
+        editor.open(cut);
+        QSignalSpy closing(&editor, &NodeEditorModel::openChanged);
+        editor.ring()->activated(editor.removeIndex());
+        QTRY_VERIFY_WITH_TIMEOUT(!session.findElement(cut), 5000);
+        QVERIFY(!editor.isOpen()); // its block went, so the editor closed
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        session.undo();
+        QTRY_VERIFY_WITH_TIMEOUT(session.findElement(cut), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+    }
+
+    // The palette's Amp: a NAM model (the library's first) and a tone stack, as one block.
+    void paletteAddsAnAmp()
+    {
+        Library library;
+        library.setRoots(daemon.dir.filePath("lib"), daemon.dir.filePath("lib"));
+        QSignalSpy scanned(&library, &Library::scanned);
+        library.rescan();
+        QVERIFY(scanned.wait(5000));
+        PaletteModel palette(&engine, &library);
+        QVERIFY(palette.rowCount() > 2);
+        const int amp = palette.indexOfType("amp");
+        const auto made = palette.make(amp);
+        QVERIFY(made);
+        QCOMPARE(made->nodes.size(), 2);
+        QCOMPARE(made->nodes[0].json.value("model").toString(), QStringLiteral("A2-Lite"));
+        QCOMPARE(made->nodes[1].id, made->element + "-tone");
+        // A palette for every engine type it lists.
+        for (int r = 0; r < palette.rowCount(); ++r)
+            QVERIFY2(palette.make(r), qPrintable(palette.data(palette.index(r), PaletteModel::NameRole).toString()));
+
+        // Dual can't take another amp: over the budget, refused, and the rig stays as it was.
+        RigDocument doc = session.document();
+        QVERIFY(edits::insert(doc, *made, {0, {}, 0}));
+        session.applyDocument(doc);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        QVERIFY2(session.message().startsWith("Too much for the pedal"), qPrintable(session.message()));
+        QTRY_VERIFY_WITH_TIMEOUT(!session.findElement(made->element), 5000);
+
+        // Clean can.
+        QVERIFY(load("Clean"));
+        const qint64 generation = engine.generation();
+        doc = session.document();
+        QVERIFY(edits::insert(doc, *made, {0, {}, 0}));
+        session.applyDocument(doc);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        QVERIFY2(session.message().isEmpty(), qPrintable(session.message()));
+        QTRY_VERIFY_WITH_TIMEOUT(engine.generation() > generation, 5000);
+        session.refresh();
+        QTRY_COMPARE_WITH_TIMEOUT(session.document().chains[0].series.first().element, made->element, 5000);
+        QCOMPARE(session.document().chains[0].series.first().nodes.size(), 2);
+        session.undo();
+        QTRY_VERIFY_WITH_TIMEOUT(!session.findElement(made->element), 5000);
     }
 
     // A drag in the rig editor: the cab lifted and dropped before the amp. The preview is the

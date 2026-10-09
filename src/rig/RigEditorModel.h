@@ -122,6 +122,8 @@ signals:
     void availableWidthChanged();
     void laidOut();
     void draggingChanged();
+    // Something new was put in the rig: the view selects it once it is laid out.
+    void selectRequested(const QString &element);
     void dragPointChanged();
 
 private:

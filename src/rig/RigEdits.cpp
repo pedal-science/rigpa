@@ -1,6 +1,9 @@
 #include "RigEdits.h"
 
 #include <QJsonArray>
+#include <QUuid>
+
+#include <cmath>
 
 namespace rigpa::edits {
 
@@ -57,7 +60,13 @@ public:
             nodes.append(e.split.json);
             connect(from, e.split.id, 0);
             for (int l = 0; l < e.lanes.size(); ++l) {
-                const Out end = series(e.lanes.at(l), {e.split.id, l});
+                Out end = series(e.lanes.at(l), {e.split.id, l});
+                const RigNode gain = e.laneGains.value(l);
+                if (!gain.id.isEmpty()) {
+                    nodes.append(gain.json);
+                    connect(end, gain.id, 0);
+                    end = {gain.id, 0};
+                }
                 connect(end, e.mix.id, l);
             }
             nodes.append(e.mix.json);
@@ -154,6 +163,142 @@ bool move(RigDocument &doc, const QString &element, const Place &to)
 bool remove(RigDocument &doc, const QString &element)
 {
     return take(doc, element);
+}
+
+namespace {
+
+RigElement *findIn(QList<RigElement> &series, const QString &element)
+{
+    for (RigElement &e : series) {
+        if (e.element == element)
+            return &e;
+        for (auto &lane : e.lanes)
+            if (RigElement *found = findIn(lane, element))
+                return found;
+    }
+    return nullptr;
+}
+
+void setParam(RigNode &node, const QString &param, const QJsonValue &value)
+{
+    node.json.insert(param, value);
+}
+
+} // namespace
+
+RigElement *find(RigDocument &doc, const QString &element)
+{
+    for (RigChain &chain : doc.chains)
+        if (chain.editable)
+            if (RigElement *found = findIn(chain.series, element))
+                return found;
+    return nullptr;
+}
+
+bool setLaneCount(RigDocument &doc, const QString &section, int lanes)
+{
+    RigElement *e = find(doc, section);
+    if (!e || e->kind != RigElement::Section || lanes < 1)
+        return false;
+    while (e->laneGains.size() < e->lanes.size())
+        e->laneGains.append(RigNode{});
+    while (e->lanes.size() < lanes) {
+        e->lanes.append(QList<RigElement>());
+        e->laneGains.append(RigNode{});
+    }
+    while (e->lanes.size() > lanes) {
+        e->lanes.removeLast();
+        e->laneGains.removeLast();
+    }
+    setParam(e->split, QStringLiteral("outputs"), lanes);
+    setParam(e->mix, QStringLiteral("inputs"), lanes);
+    return true;
+}
+
+double LaneGain::linear() const
+{
+    const double magnitude = mute ? 0 : std::pow(10.0, levelDb / 20);
+    return invert ? -magnitude : magnitude;
+}
+
+LaneGain laneGainOf(const RigElement &section, int lane)
+{
+    LaneGain g;
+    const RigNode node = section.laneGains.value(lane);
+    if (node.id.isEmpty())
+        return g;
+    const double linear = node.json.value(QStringLiteral("gain")).toDouble(1);
+    // A muted lane remembers its level and polarity in the node's meta: a gain of 0 can't say them.
+    const QJsonObject meta = node.json.value(QStringLiteral("meta")).toObject();
+    g.mute = linear == 0;
+    g.invert = g.mute ? meta.value(QStringLiteral("invert")).toBool() : linear < 0;
+    g.levelDb = g.mute ? meta.value(QStringLiteral("level_db")).toDouble(0) : 20 * std::log10(std::abs(linear));
+    return g;
+}
+
+bool setLaneGain(RigDocument &doc, const QString &section, int lane, const LaneGain &gain)
+{
+    RigElement *e = find(doc, section);
+    if (!e || e->kind != RigElement::Section || lane < 0 || lane >= e->lanes.size())
+        return false;
+    while (e->laneGains.size() < e->lanes.size())
+        e->laneGains.append(RigNode{});
+    RigNode &node = e->laneGains[lane];
+    if (std::abs(gain.levelDb) < 1e-9 && !gain.mute && !gain.invert) {
+        node = {};
+        return true;
+    }
+    if (node.id.isEmpty()) {
+        const QString element = newElementId();
+        node = newNode(element, QStringLiteral("gain"), QStringLiteral("nc.gain"));
+    }
+    setParam(node, QStringLiteral("gain"), gain.mute ? 0.0 : gain.linear());
+    QJsonObject meta = node.json.value(QStringLiteral("meta")).toObject();
+    meta.remove(QStringLiteral("level_db"));
+    meta.remove(QStringLiteral("invert"));
+    if (gain.mute) {
+        meta.insert(QStringLiteral("level_db"), gain.levelDb);
+        if (gain.invert)
+            meta.insert(QStringLiteral("invert"), true);
+    }
+    if (meta.isEmpty())
+        node.json.remove(QStringLiteral("meta"));
+    else
+        node.json.insert(QStringLiteral("meta"), meta);
+    return true;
+}
+
+QString newElementId()
+{
+    return QUuid::createUuid().toString(QUuid::WithoutBraces).toUpper();
+}
+
+RigNode newNode(const QString &element, const QString &suffix, const QString &type, const QJsonObject &params)
+{
+    RigNode n;
+    n.id = element + u'-' + suffix;
+    n.type = type;
+    n.element = element;
+    QJsonObject json = params;
+    json.insert(QStringLiteral("id"), n.id);
+    json.insert(QStringLiteral("type"), type);
+    json.insert(QStringLiteral("element"), element);
+    n.json = json;
+    return n;
+}
+
+RigElement newSection(int lanes)
+{
+    RigElement s;
+    s.kind = RigElement::Section;
+    s.element = newElementId();
+    s.split = newNode(s.element, QStringLiteral("split"), QStringLiteral("nc.split"), {{QStringLiteral("outputs"), lanes}});
+    s.mix = newNode(s.element, QStringLiteral("mix"), QStringLiteral("nc.mix"), {{QStringLiteral("inputs"), lanes}});
+    for (int l = 0; l < lanes; ++l) {
+        s.lanes.append(QList<RigElement>());
+        s.laneGains.append(RigNode{});
+    }
+    return s;
 }
 
 QJsonObject toJson(const RigDocument &doc)

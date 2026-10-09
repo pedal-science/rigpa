@@ -38,6 +38,7 @@ class NodeEditorModel : public QAbstractListModel
     Q_PROPERTY(bool bypassed READ bypassed NOTIFY changed)
     Q_PROPERTY(int bypassIndex READ bypassIndex NOTIFY changed)
     Q_PROPERTY(int closeIndex READ closeIndex NOTIFY changed)
+    Q_PROPERTY(int removeIndex READ removeIndex NOTIFY changed)
     Q_PROPERTY(QString note READ note NOTIFY changed)
     Q_PROPERTY(rigpa::FocusRing *ring READ ring CONSTANT)
 
@@ -65,6 +66,7 @@ public:
     bool bypassed() const;
     int bypassIndex() const { return m_bypassable ? int(m_controls.size()) : -1; }
     int closeIndex() const { return int(m_controls.size()) + (m_bypassable ? 1 : 0); }
+    int removeIndex() const { return closeIndex() + 1; }
     QString note() const { return m_note; }
     FocusRing *ring() { return &m_ring; }
 
@@ -82,6 +84,8 @@ public:
     // A choice or a toggle.
     Q_INVOKABLE void choose(int index, int option);
     Q_INVOKABLE void toggleBypass();
+    // Takes the block or section out of the rig (the editor closes with it; undo brings it back).
+    Q_INVOKABLE void removeElement();
     // The picker chose `id` for the control at `index`.
     Q_INVOKABLE void pick(int index, const QString &id);
     // What the picker should show for a control: 0 models, 1 IRs; and the id it holds now.
@@ -113,6 +117,10 @@ signals:
 private:
     struct Control {
         QString kind;     // "knob", "choice", "picker", "toggle"
+        // A section's own controls, which are not node parameters: "lanes", or a lane's "level",
+        // "mute" or "invert" (its gain node, edits::LaneGain). Empty for a node parameter.
+        QString lanePart;
+        int lane = -1;
         QString group;    // the node's type name, shown above its first control
         bool firstOfGroup = false;
         RigNode node;
@@ -126,6 +134,11 @@ private:
     void rebuild();
     void readValues(bool keepHeld);
     void readValue(Control &c, bool keepHeld) const;
+    void readLaneValue(Control &c, const RigElement &section, bool keepHeld) const;
+    void sendLane(Control &c);
+    void buildSection(const RigElement &e);
+    // What the controls are built from: when a re-read changes it, they are built again.
+    static QStringList shapeOf(const RigElement &e);
     void updateRing();
     void touch(int index);
     void send(int index);

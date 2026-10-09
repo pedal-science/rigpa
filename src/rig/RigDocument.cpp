@@ -26,6 +26,15 @@ RigNode nodeFrom(const QJsonObject &o)
     return n;
 }
 
+// A lane's own gain, as ljoss writes it: one nc.gain whose id is its element plus "-gain".
+bool isLaneGain(const RigElement &e)
+{
+    if (e.kind != RigElement::Block || e.nodes.size() != 1)
+        return false;
+    const RigNode &n = e.nodes.first();
+    return n.type == QLatin1String("nc.gain") && !n.element.isEmpty() && n.id == n.element + QStringLiteral("-gain");
+}
+
 struct Edge {
     QString to;
     int fromPort = 0;
@@ -63,7 +72,13 @@ public:
                     QList<RigElement> lane;
                     if (!series(e.to, mix, lane))
                         return false;
+                    RigNode gain;
+                    if (!lane.isEmpty() && isLaneGain(lane.last())) {
+                        gain = lane.last().nodes.first();
+                        lane.removeLast();
+                    }
                     section.lanes.append(lane);
+                    section.laneGains.append(gain);
                 }
                 section.mix = nodes.value(mix);
                 visited.insert(mix);

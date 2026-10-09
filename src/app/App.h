@@ -5,6 +5,7 @@
 #include "library/Library.h"
 #include "library/PickerModel.h"
 #include "rig/NodeEditorModel.h"
+#include "rig/PaletteModel.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
@@ -35,11 +36,12 @@ class App : public QObject
     Q_PROPERTY(rigpa::RigEditorModel *editor READ editor CONSTANT)
     Q_PROPERTY(rigpa::NodeEditorModel *nodeEditor READ nodeEditor CONSTANT)
     Q_PROPERTY(rigpa::PickerModel *picker READ picker CONSTANT)
+    Q_PROPERTY(rigpa::PaletteModel *palette READ palette CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
         Library *library, RigList *rigs, RigSession *rig, RigEditorModel *editor,
-        NodeEditorModel *nodeEditor, PickerModel *picker, QObject *parent = nullptr);
+        NodeEditorModel *nodeEditor, PickerModel *picker, PaletteModel *palette, QObject *parent = nullptr);
     ~App() override;
 
     static App *create(QQmlEngine *, QJSEngine *);
@@ -54,6 +56,12 @@ public:
     RigEditorModel *editor() const { return m_editor; }
     NodeEditorModel *nodeEditor() const { return m_nodeEditor; }
     PickerModel *picker() const { return m_picker; }
+    PaletteModel *palette() const { return m_palette; }
+
+    // The header's +: the palette, over the rig view. What is chosen goes in after the selected
+    // block (in its lane, if it is in one), or at the end of the first chain.
+    Q_INVOKABLE void openPalette();
+    void add(int paletteRow);
 
     // Opens the node editor on the rig editor's selectable `select` (apply, or a tap on the
     // selected tile), over the rig view.
@@ -72,6 +80,7 @@ private:
     RigEditorModel *m_editor;
     NodeEditorModel *m_nodeEditor;
     PickerModel *m_picker;
+    PaletteModel *m_palette;
 };
 
 } // namespace rigpa

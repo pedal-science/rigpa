@@ -43,6 +43,30 @@ bool remove(RigDocument &doc, const QString &element);
 // Inserts an element at a place.
 bool insert(RigDocument &doc, const RigElement &element, const Place &at);
 
+// A section's lanes: new ones are added empty at the end; fewer takes lanes off the end, with
+// whatever is in them. The split's `outputs` and the mix's `inputs` follow.
+bool setLaneCount(RigDocument &doc, const QString &section, int lanes);
+
+// A lane's level, mute and polarity (ljoss's lane gain, RigElement::laneGains). At 0 dB, unmuted
+// and upright the lane has no gain node at all.
+struct LaneGain {
+    double levelDb = 0;
+    bool mute = false;
+    bool invert = false;
+    double linear() const;
+};
+LaneGain laneGainOf(const RigElement &section, int lane);
+bool setLaneGain(RigDocument &doc, const QString &section, int lane, const LaneGain &gain);
+
+// The element (a block or section) with this id, to change in place.
+RigElement *find(RigDocument &doc, const QString &element);
+
+// New things, with ids as ljoss makes them: a UUID element, and nodes "<element>-<suffix>".
+QString newElementId();
+RigNode newNode(const QString &element, const QString &suffix, const QString &type,
+                const QJsonObject &params = {});
+RigElement newSection(int lanes = 2);
+
 // The document the tree says, for rig.apply.
 QJsonObject toJson(const RigDocument &doc);
 

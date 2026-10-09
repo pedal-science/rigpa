@@ -129,6 +129,51 @@ private slots:
         const QJsonArray nodes = edits::toJson(doc).value("chains").toArray()[0].toObject().value("nodes").toArray();
         QCOMPARE(nodes.size(), 4); // in, amp, cab, out
     }
+
+    void laneCountAndGains()
+    {
+        RigDocument doc = RigDocument::parse(fixture("Dual"));
+        QVERIFY(edits::setLaneCount(doc, kSplit, 3));
+        QVERIFY(edits::setLaneGain(doc, kSplit, 0, {-6, false, false}));
+        QVERIFY(edits::setLaneGain(doc, kSplit, 1, {-3, true, true}));   // muted: level and polarity kept
+        QVERIFY(edits::setLaneGain(doc, kSplit, 2, {0, false, true}));   // inverted only
+        RigDocument back = reread(doc);
+        QVERIFY(back.chains[0].editable);
+        const RigElement &s = back.chains[0].series[1];
+        QCOMPARE(s.lanes.size(), 3);
+        QCOMPARE(s.split.json.value("outputs").toInt(), 3);
+        QCOMPARE(s.mix.json.value("inputs").toInt(), 3);
+        // The gain nodes are the lanes' own, not tiles in them.
+        QCOMPARE(s.lanes[0].size(), 1);
+        QVERIFY(s.lanes[2].isEmpty());
+        QVERIFY(qAbs(edits::laneGainOf(s, 0).levelDb + 6) < 1e-9);
+        QVERIFY(qAbs(s.laneGains[0].json.value("gain").toDouble() - 0.501187) < 1e-5);
+        QCOMPARE(edits::laneGainOf(s, 1).mute, true);
+        QCOMPARE(edits::laneGainOf(s, 1).invert, true);
+        QCOMPARE(edits::laneGainOf(s, 1).levelDb, -3.0);
+        QCOMPARE(s.laneGains[2].json.value("gain").toDouble(), -1.0);
+        QCOMPARE(s.laneGains[0].id, s.laneGains[0].element + "-gain"); // ljoss's form
+
+        // Back to 0 dB, unmuted and upright: no gain node at all.
+        QVERIFY(edits::setLaneGain(back, kSplit, 0, {}));
+        QVERIFY(edits::setLaneCount(back, kSplit, 2));
+        back = reread(back);
+        QVERIFY(back.chains[0].series[1].laneGains[0].id.isEmpty());
+        QCOMPARE(back.chains[0].series[1].lanes.size(), 2);
+    }
+
+    void newThings()
+    {
+        const RigElement s = edits::newSection(2);
+        QCOMPARE(s.split.id, s.element + "-split");
+        QCOMPARE(s.mix.json.value("inputs").toInt(), 2);
+        RigDocument doc = RigDocument::parse(fixture("Clean"));
+        QVERIFY(edits::insert(doc, s, {0, {}, 1}));
+        const RigDocument back = reread(doc);
+        QVERIFY(back.chains[0].editable);
+        QCOMPARE(back.chains[0].series[1].kind, RigElement::Section);
+        QCOMPARE(back.chains[0].series[1].lanes.size(), 2);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestEdits)

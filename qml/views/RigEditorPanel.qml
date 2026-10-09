@@ -26,6 +26,12 @@ Panel {
     Connections {
         target: panel.model
         function onLaidOut() { panel.sync() }
+        function onSelectRequested(element) {
+            panel.selectedElement = element
+            const at = panel.model.selectOf(element)
+            if (at >= 0)
+                panel.ring.highlight = at
+        }
     }
     Connections {
         target: panel.ring

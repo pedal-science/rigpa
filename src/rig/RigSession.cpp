@@ -91,6 +91,7 @@ void RigSession::loadRigNamed(const QString &name)
 {
     if (name.isEmpty())
         return;
+    clearHistory();
     m_engine->client()->request(QStringLiteral("rig.load"), {{QStringLiteral("rig"), name + QStringLiteral(".json")}},
                                 [this, name](const EngineReply &reply) {
         if (!reply.ok) {
@@ -117,7 +118,10 @@ void RigSession::fetchDocument()
         // While an apply is on its way, a read may still show the document before it: keep the
         // edited one, and read again once the engine has answered.
         if (reply.ok && m_applying == 0) {
+            const QString before = m_document.name;
             m_document = RigDocument::parse(reply.body.value(QStringLiteral("document")).toObject());
+            if (m_hasDocument && m_document.name != before)
+                clearHistory(); // another rig: its own history
             m_missing.clear();
             for (const auto &m : reply.body.value(QStringLiteral("missing_assets")).toArray())
                 m_missing.insert(m.toObject().value(QStringLiteral("node")).toString());
@@ -178,19 +182,71 @@ bool RigSession::macroElementIsUnique(const QString &chainId, const QString &ele
     return false;
 }
 
+void RigSession::record()
+{
+    if (!m_hasDocument)
+        return;
+    m_undo.append(m_document.json);
+    while (m_undo.size() > kHistoryLimit)
+        m_undo.removeFirst();
+    m_redo.clear();
+    m_lastParamKey.clear();
+    emit historyChanged();
+}
+
+void RigSession::clearHistory()
+{
+    if (m_undo.isEmpty() && m_redo.isEmpty())
+        return;
+    m_undo.clear();
+    m_redo.clear();
+    m_lastParamKey.clear();
+    emit historyChanged();
+}
+
+void RigSession::undo()
+{
+    if (m_undo.isEmpty() || !m_hasDocument)
+        return;
+    m_redo.append(m_document.json);
+    const QJsonObject before = m_undo.takeLast();
+    m_lastParamKey.clear();
+    emit historyChanged();
+    applyJson(before);
+}
+
+void RigSession::redo()
+{
+    if (m_redo.isEmpty() || !m_hasDocument)
+        return;
+    m_undo.append(m_document.json);
+    const QJsonObject after = m_redo.takeLast();
+    m_lastParamKey.clear();
+    emit historyChanged();
+    applyJson(after);
+}
+
 void RigSession::applyDocument(const RigDocument &edited)
 {
-    const QJsonObject json = edits::toJson(edited);
+    record();
+    applyJson(edits::toJson(edited));
+}
+
+void RigSession::applyJson(const QJsonObject &json)
+{
     m_document = RigDocument::parse(json);
     emit documentChanged();
     ++m_applying;
     m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), json}},
                                 [this](const EngineReply &reply) {
         --m_applying;
-        if (!reply.ok)
-            say(tr("The engine refused the change: %1").arg(reply.message.isEmpty() ? reply.code : reply.message));
-        else
+        if (reply.ok)
             say({});
+        else if (reply.code == QLatin1String("over_budget"))
+            // The engine lists every unit's cost after the sentence that matters.
+            say(tr("Too much for the pedal: %1").arg(reply.message.section(QStringLiteral(" ("), 0, 0)));
+        else
+            say(tr("The engine refused the change: %1").arg(reply.message.isEmpty() ? reply.code : reply.message));
         fetchDocument();
     });
 }
@@ -234,8 +290,10 @@ void RigSession::setBypass(const QString &element, bool bypassed)
                                 {QStringLiteral("node"), n.id},
                                 {QStringLiteral("bypass"), bypassed}}});
     }
-    if (!ops.isEmpty())
+    if (!ops.isEmpty()) {
+        record();
         m_edits.submit(chainId, ops);
+    }
 }
 
 void RigSession::setParam(const QString &chainId, const RigNode &node, const QString &param, const QJsonValue &value)
@@ -247,7 +305,14 @@ void RigSession::setParam(const QString &chainId, const RigNode &node, const QSt
     op.insert(QStringLiteral("op"), QStringLiteral("set_param"));
     op.insert(QStringLiteral("param"), param);
     op.insert(QStringLiteral("value"), value);
-    m_edits.submit(chainId, node.id + u'#' + param, op);
+    const QString key = node.id + u'#' + param;
+    // One step per run of changes to one parameter.
+    if (key != m_lastParamKey || !m_lastParamAt.isValid() || m_lastParamAt.elapsed() > kParamStepMs) {
+        record();
+        m_lastParamKey = key;
+    }
+    m_lastParamAt.start();
+    m_edits.submit(chainId, key, op);
 }
 
 void RigSession::say(const QString &message)

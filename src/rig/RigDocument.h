@@ -26,6 +26,10 @@ struct RigElement {
     QList<RigNode> nodes;         // Block: in signal order
     RigNode split, mix;           // Section
     QList<QList<RigElement>> lanes;
+    // Section: each lane's level, mute and polarity, as ljoss writes them: a trailing nc.gain
+    // "<lane>-gain" with a linear gain (negative inverts, 0 mutes), because the mixer's own
+    // per-port values aren't document fields. An empty id: the lane has none (0 dB).
+    QList<RigNode> laneGains;
 };
 
 struct RigChain {

@@ -8,6 +8,7 @@
 #include "library/PickerModel.h"
 #include "pedald/PedaldClient.h"
 #include "rig/NodeEditorModel.h"
+#include "rig/PaletteModel.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
@@ -46,7 +47,7 @@ int main(int argc, char *argv[])
         QStringLiteral("view"));
     const QCommandLineOption inputOption(QStringLiteral("input"),
         QStringLiteral("Replay hardware controls once loaded (for demos and checks): '>' and '<' turn "
-                       "the rotary, '.' is apply, ',' is back."),
+                       "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette)."),
         QStringLiteral("keys"));
     const QCommandLineOption demoDragOption(QStringLiteral("demo-drag"),
         QStringLiteral("For demos: lift the rig editor's node <from> and hold it over the left edge of "
@@ -78,8 +79,9 @@ int main(int argc, char *argv[])
     rigpa::RigEditorModel editor(&rigSession, &library);
     rigpa::NodeEditorModel nodeEditor(&rigSession, &engineSession, &editor, &library);
     rigpa::PickerModel picker(&library);
+    rigpa::PaletteModel palette(&engineSession, &library);
     rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor,
-                         &nodeEditor, &picker);
+                         &nodeEditor, &picker, &palette);
 
     // The rotary and apply in rig view: load a rig from the list.
     QObject::connect(&nav, &rigpa::Navigator::rigLoadRequested, &rigSession, &rigpa::RigSession::loadRig);
@@ -98,6 +100,8 @@ int main(int argc, char *argv[])
     QObject::connect(&devInput, &rigpa::DevInput::rotated, &nav, &rigpa::Navigator::rotate);
     QObject::connect(&devInput, &rigpa::DevInput::applied, &nav, &rigpa::Navigator::apply);
     QObject::connect(&devInput, &rigpa::DevInput::backed, &nav, &rigpa::Navigator::back);
+    QObject::connect(&devInput, &rigpa::DevInput::undoRequested, &rigSession, &rigpa::RigSession::undo);
+    QObject::connect(&devInput, &rigpa::DevInput::redoRequested, &rigSession, &rigpa::RigSession::redo);
     app.installEventFilter(&devInput);
 
     if (parser.isSet(viewOption)) {
@@ -115,8 +119,9 @@ int main(int argc, char *argv[])
 
     if (parser.isSet(inputOption)) {
         const QString keys = parser.value(inputOption);
-        QTimer::singleShot(1500, &app, [&nav, keys] {
+        QTimer::singleShot(1500, &app, [&nav, &appObject, keys] {
             for (const QChar c : keys) {
+                if (c == u'+') appObject.openPalette();
                 if (c == u'>') nav.rotate(1);
                 else if (c == u'<') nav.rotate(-1);
                 else if (c == u'.') nav.apply();

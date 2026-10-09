@@ -1,5 +1,6 @@
 #include "NodeEditorModel.h"
 
+#include "RigEdits.h"
 #include "RigEditorModel.h"
 #include "RigSession.h"
 #include "engine/EngineSession.h"
@@ -23,11 +24,7 @@ NodeEditorModel::NodeEditorModel(RigSession *session, EngineSession *engine, Rig
             return;
         QString chain;
         const RigElement *e = m_session->findElement(m_element, &chain);
-        QStringList shape;
-        if (e)
-            for (const RigNode &n : e->nodes)
-                shape << n.id + u'=' + n.type;
-        if (!e || shape != m_shape || chain != m_chain) {
+        if (!e || shapeOf(*e) != m_shape || chain != m_chain) {
             rebuild();
             return;
         }
@@ -66,6 +63,8 @@ NodeEditorModel::NodeEditorModel(RigSession *session, EngineSession *engine, Rig
     connect(&m_ring, &FocusRing::activated, this, [this](int i) {
         if (i == closeIndex())
             emit closeRequested();
+        else if (i == removeIndex())
+            removeElement();
         else if (i >= 0 && i < m_controls.size() && m_controls.at(i).kind == QLatin1String("picker"))
             emit pickerRequested(i);
     });
@@ -130,6 +129,7 @@ void NodeEditorModel::rebuild()
         close();
         return;
     }
+    m_shape = shapeOf(*e);
     if (const auto *item = m_editor ? m_editor->itemFor(m_element) : nullptr) {
         m_title = item->title;
         m_subtitle = item->subtitle;
@@ -140,16 +140,13 @@ void NodeEditorModel::rebuild()
 
     const Schema &schema = m_engine->schema();
     if (e->kind == RigElement::Section) {
-        const int lanes = int(e->lanes.size());
-        m_note = (lanes == 1 ? tr("A parallel section with 1 lane.") : tr("A parallel section with %1 lanes.").arg(lanes))
-                 + u' ' + tr("Its lanes' levels are edited in a later version.");
+        buildSection(*e);
     } else if (schema.isEmpty()) {
         m_note = tr("Waiting for the engine's catalogue of parameters…");
     }
 
     if (e->kind == RigElement::Block) {
         for (const RigNode &n : e->nodes) {
-            m_shape << n.id + u'=' + n.type;
             const NodeTypeSpec *t = schema.type(n.type);
             if (!t)
                 continue;
@@ -204,11 +201,133 @@ void NodeEditorModel::rebuild()
     emit changed();
 }
 
+QStringList NodeEditorModel::shapeOf(const RigElement &e)
+{
+    QStringList shape;
+    for (const RigNode &n : e.nodes)
+        shape << n.id + u'=' + n.type;
+    if (e.kind == RigElement::Section)
+        shape << QStringLiteral("lanes=%1").arg(e.lanes.size());
+    return shape;
+}
+
+void NodeEditorModel::buildSection(const RigElement &e)
+{
+    // Lanes, then each lane's level, mute and polarity.
+    Control lanes;
+    lanes.kind = QStringLiteral("choice");
+    lanes.lanePart = QStringLiteral("lanes");
+    lanes.group = tr("Parallel");
+    lanes.firstOfGroup = true;
+    lanes.spec.id = QStringLiteral("lanes");
+    lanes.spec.name = tr("Lanes");
+    lanes.spec.kind = ParamSpec::Option;
+    const int count = int(e.lanes.size());
+    for (int n = std::min(2, count); n <= std::max(4, count); ++n)
+        lanes.spec.options.append({QString::number(n), QString::number(n)});
+    m_controls.append(lanes);
+    for (int l = 0; l < count; ++l) {
+        Control level;
+        level.kind = QStringLiteral("knob");
+        level.lanePart = QStringLiteral("level");
+        level.lane = l;
+        level.group = tr("Lane %1").arg(l + 1);
+        level.firstOfGroup = true;
+        level.spec.id = QStringLiteral("level");
+        level.spec.name = tr("Level");
+        level.spec.kind = ParamSpec::Number;
+        level.spec.min = -40;
+        level.spec.max = 12;
+        level.spec.hasDefault = true;
+        level.spec.unit = QStringLiteral("dB");
+        level.spec.rampable = true;
+        m_controls.append(level);
+        const QList<std::pair<QString, QString>> flags{{QStringLiteral("mute"), tr("Mute")},
+                                                       {QStringLiteral("invert"), tr("Invert")}};
+        for (const auto &[part, name] : flags) {
+            Control t;
+            t.kind = QStringLiteral("toggle");
+            t.lanePart = part;
+            t.lane = l;
+            t.group = level.group;
+            t.spec.id = part;
+            t.spec.name = name;
+            t.spec.kind = ParamSpec::Flag;
+            m_controls.append(t);
+        }
+    }
+}
+
+void NodeEditorModel::readLaneValue(Control &c, const RigElement &section, bool keepHeld) const
+{
+    if (keepHeld && (c.dirty || (c.held.isValid() && c.held.elapsed() < kHoldMs)))
+        return;
+    if (c.lanePart == QLatin1String("lanes")) {
+        const QString n = QString::number(section.lanes.size());
+        for (int i = 0; i < c.spec.options.size(); ++i)
+            if (c.spec.options.at(i).value == n)
+                c.value = i;
+        return;
+    }
+    const edits::LaneGain g = edits::laneGainOf(section, c.lane);
+    if (c.lanePart == QLatin1String("level"))
+        c.value = std::round(g.levelDb * 100) / 100;
+    else if (c.lanePart == QLatin1String("mute"))
+        c.value = g.mute ? 1 : 0;
+    else
+        c.value = g.invert ? 1 : 0;
+}
+
+void NodeEditorModel::sendLane(Control &c)
+{
+    c.dirty = false;
+    c.held.start();
+    RigDocument doc = m_session->document();
+    const RigElement *section = edits::find(doc, m_element);
+    if (!section)
+        return;
+    if (c.lanePart == QLatin1String("lanes")) {
+        if (edits::setLaneCount(doc, m_element, c.spec.options.value(int(c.value)).value.toInt()))
+            m_session->applyDocument(doc);
+        return;
+    }
+    edits::LaneGain g = edits::laneGainOf(*section, c.lane);
+    const RigNode node = section->laneGains.value(c.lane);
+    if (c.lanePart == QLatin1String("level")) {
+        g.levelDb = c.value;
+        // The lane has its gain node already: ramp it there, as any knob.
+        if (!node.id.isEmpty() && !g.mute) {
+            m_session->setParam(m_chain, node, QStringLiteral("gain"), g.linear());
+            return;
+        }
+    } else if (c.lanePart == QLatin1String("mute")) {
+        g.mute = c.value != 0;
+    } else {
+        g.invert = c.value != 0;
+    }
+    if (edits::setLaneGain(doc, m_element, c.lane, g))
+        m_session->applyDocument(doc);
+}
+
+void NodeEditorModel::removeElement()
+{
+    if (!isOpen())
+        return;
+    RigDocument doc = m_session->document();
+    if (edits::remove(doc, m_element))
+        m_session->applyDocument(doc); // the element goes, and the editor closes with it
+}
+
 void NodeEditorModel::readValues(bool keepHeld)
 {
     const RigElement *e = m_session->findElement(m_element);
     if (!e)
         return;
+    if (e->kind == RigElement::Section) {
+        for (Control &c : m_controls)
+            readLaneValue(c, *e, keepHeld);
+        return;
+    }
     for (Control &c : m_controls) {
         for (const RigNode &n : e->nodes)
             if (n.id == c.node.id)
@@ -261,12 +380,18 @@ void NodeEditorModel::updateRing()
     if (m_bypassable)
         kinds << QStringLiteral("toggle");
     kinds << QStringLiteral("action"); // Close
+    kinds << QStringLiteral("action"); // Remove
     m_ring.setKinds(kinds);
     m_ring.setCount(isOpen() ? int(kinds.size()) : 0);
 }
 
 bool NodeEditorModel::streams(const Control &c) const
 {
+    if (c.lanePart == QLatin1String("level")) {
+        // Only once the lane has a gain node to ramp; before that the first value adds one.
+        const RigElement *section = m_session->findElement(m_element);
+        return section && !section->laneGains.value(c.lane).id.isEmpty() && !edits::laneGainOf(*section, c.lane).mute;
+    }
     return c.kind == QLatin1String("knob") && c.spec.kind == ParamSpec::Number && c.spec.rampable;
 }
 
@@ -391,6 +516,10 @@ QString NodeEditorModel::pickerCurrent(int index) const
 void NodeEditorModel::send(int index)
 {
     Control &c = m_controls[index];
+    if (!c.lanePart.isEmpty()) {
+        sendLane(c);
+        return;
+    }
     c.dirty = false;
     c.held.start();
     QJsonValue value;

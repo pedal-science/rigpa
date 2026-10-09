@@ -62,6 +62,14 @@ bool DevInput::key(QKeyEvent *event)
 {
     if (event->isAutoRepeat() || textHasFocus())
         return false;
+    if (event->key() == Qt::Key_Z && (event->modifiers() & Qt::ControlModifier)
+        && !(event->modifiers() & (Qt::AltModifier | Qt::MetaModifier))) {
+        if (event->modifiers() & Qt::ShiftModifier)
+            emit redoRequested();
+        else
+            emit undoRequested();
+        return true;
+    }
     if (event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))
         return false;
     if (event->key() == Qt::Key_Period) {

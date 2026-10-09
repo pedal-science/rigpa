@@ -43,10 +43,10 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
-        visible: parent.inRigView && !parent.editingNode
-        HeaderButton { label: "+"; enabled: false }
-        HeaderButton { label: qsTr("Undo"); enabled: false }
-        HeaderButton { label: qsTr("Redo"); enabled: false }
+        visible: parent.inRigView && !parent.editingNode && !App.palette.isOpen
+        HeaderButton { label: "+"; enabled: App.rig.hasDocument && !App.palette.isOpen; onClicked: App.openPalette() }
+        HeaderButton { label: qsTr("Undo"); enabled: App.rig.canUndo; onClicked: App.rig.undo() }
+        HeaderButton { label: qsTr("Redo"); enabled: App.rig.canRedo; onClicked: App.rig.redo() }
     }
 
     Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }

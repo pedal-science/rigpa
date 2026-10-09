@@ -33,6 +33,9 @@ signals:
     void rotated(int steps);
     void applied();
     void backed();
+    // ⌘Z and ⇧⌘Z (Qt reports ⌘ as Control on the Mac).
+    void undoRequested();
+    void redoRequested();
 
 private:
     bool wheel(QWheelEvent *event);

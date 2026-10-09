@@ -5,6 +5,7 @@
 #include "engine/EditStream.h"
 #include "engine/EngineSession.h"
 
+#include <QElapsedTimer>
 #include <QObject>
 #include <QSet>
 #include <QtQml/qqmlregistration.h>
@@ -27,6 +28,8 @@ class RigSession : public QObject
     QML_UNCREATABLE("The app owns the rig session")
     Q_PROPERTY(bool hasDocument READ hasDocument NOTIFY documentChanged)
     Q_PROPERTY(QString message READ message NOTIFY messageChanged)
+    Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
+    Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
 
 public:
     RigSession(EngineSession *engine, RigList *rigs, QObject *parent = nullptr);
@@ -58,6 +61,20 @@ public:
     // the change at once; a refusal is said in the footer and the engine's document read back.
     void applyDocument(const RigDocument &edited);
     bool applying() const { return m_applying > 0; }
+
+    // Undo and redo: every edit made here (a move, an add or remove, lanes, bypass, a model, a
+    // parameter) first records the document as it was; undo applies that document again. A run of
+    // changes to one parameter is one step. The history is the running rig's: loading another
+    // rig, or the rig changing name underneath, starts it again.
+    static constexpr int kHistoryLimit = 100;
+    static constexpr int kParamStepMs = 1500;
+    bool canUndo() const { return !m_undo.isEmpty(); }
+    bool canRedo() const { return !m_redo.isEmpty(); }
+    Q_INVOKABLE void undo();
+    Q_INVOKABLE void redo();
+    void clearHistory();
+    // A line for the footer (empty clears it).
+    void say(const QString &message);
     // Reads the document again (after an edit the engine's status doesn't show).
     void refresh() { fetchDocument(); }
 
@@ -67,12 +84,14 @@ public:
 signals:
     void documentChanged();
     void messageChanged();
+    void historyChanged();
 
 private:
     void fetchDocument();
     void updateRunning();
     void maybeLoadFirst();
-    void say(const QString &message);
+    void record();
+    void applyJson(const QJsonObject &json);
 
     EngineSession *m_engine;
     RigList *m_rigs;
@@ -82,6 +101,9 @@ private:
     QSet<QString> m_missing;
     QString m_message;
     int m_applying = 0;
+    QList<QJsonObject> m_undo, m_redo;
+    QString m_lastParamKey;
+    QElapsedTimer m_lastParamAt;
     bool m_fetching = false;
     bool m_fetchAgain = false;
     bool m_startupDone = false;
