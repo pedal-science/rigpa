@@ -43,7 +43,8 @@ void PedaldClient::send(const QByteArray &verb, const QString &path, const QByte
         reply->deleteLater();
         PedaldReply r;
         r.status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        const QByteArray data = reply->readAll();
+        // A reply that never connected isn't open: there is nothing to read, only the error.
+        const QByteArray data = reply->isOpen() ? reply->readAll() : QByteArray();
         r.body = QJsonDocument::fromJson(data);
         r.ok = reply->error() == QNetworkReply::NoError && r.status >= 200 && r.status < 300;
         if (!r.ok) {
