@@ -4,19 +4,21 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **M3 done (2026-10-09), awaiting the owner's review.** The library is read directly and
-  read-only from namchaind's roots (or `rigpa.json`'s `library` overrides), on a worker thread,
-  cached by size and time: ljoss's NAM and WAV sniffs (plus the tail for 0.7 files' trailing
-  `metadata`) and its brand table (plus: bracketed text never names the brand). The browse view
-  lists models or IRs by folder; the rotary walks the switch then the rows and the list follows.
-- **P1 done (2026-10-09):** pedald's rig library API in pedal.project `70a6d35` (`GET /library/rigs`
-  with `running`; `GET`, `PUT`, `DELETE /library/rigs/<name>`; `POST …/rename`), 289 pedald tests,
-  and `sync-library` no longer takes `rigs/` from pedald. Reaches vip only with V1's apply.
-- The dev loop now uses `~/Documents/Audio` (64 models, 520 IRs, all downloaded); the fixture
-  rigs name real models (Ampeg VT-40, Boss SD-1, Orange Rockerverb) and the Mesa 4x12 IR.
-- Earlier: M2 (engine connection, dev loop), M1 (shell, navigation, settings), M0 (repo; D14 in
-  pedal.project `876715e`).
-- **Next: M4** (the rig view: rig list via pedald, the editor's tiles, rig switching) once M3 is
+- **M4 done (2026-10-09), awaiting the owner's review.** The rig view:
+  - the rig list from pedald (`GET /library/rigs`), polled every 5 s, the running rig marked
+    (by file, or by document name after a resume); a tap, or rotary and apply, loads a rig;
+  - the editor: `RigDocument` reads `rig.get`'s graph back into blocks (nodes sharing an
+    `element`) and split/mix sections with lanes; anything else is shown read-only.
+    `RigEditorModel` lays each chain out with ljoss's flow layout (ported with its tests,
+    `src/layout/Flow.*`), sections as one flow item with stacked lanes, and numbers blocks and
+    sections in signal order for the rotary; selection survives a re-read;
+  - following others: any move of the engine's rig, generation or `params_applied` re-reads it;
+    the startup rule loads the first rig only when the engine runs nothing.
+  - Found and fixed: a first status was announced before its rig fields were set, so a fresh
+    rigpa loaded the first rig over a running one (`tst_rig_live` now guards it).
+- `dev-pedal` takes `RIGPA_DEV_DIR` and port overrides, so a second back end can run beside yours.
+- Earlier: M3 (library, browse), P1 (pedald rig API, pedal.project `70a6d35`), M2, M1, M0.
+- **Next: M5** (the node editor, bypass, the model/IR picker, knob streaming) once M4 is
   reviewed. Nothing touches vip before M9, and M9 starts only with the owner's go-ahead.
 
 ## Why

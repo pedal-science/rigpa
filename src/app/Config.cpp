@@ -97,6 +97,28 @@ bool Config::loadJson(const QJsonObject &root, QString *error)
     if (engine.contains(QStringLiteral("token_file")))
         m_engineTokenFile = engine.value(QStringLiteral("token_file")).toString();
 
+    QString pedaldConfig = root.value(QStringLiteral("pedald_config")).toString();
+#ifdef Q_OS_LINUX
+    if (pedaldConfig.isEmpty() && !root.contains(QStringLiteral("pedald"))
+        && QFile::exists(QStringLiteral("/etc/pedal/pedald.json")))
+        pedaldConfig = QStringLiteral("/etc/pedal/pedald.json");
+#endif
+    if (!pedaldConfig.isEmpty()) {
+        QFile file(pedaldConfig);
+        if (!file.open(QIODevice::ReadOnly)) {
+            *error = QStringLiteral("cannot read pedald_config %1: %2").arg(pedaldConfig, file.errorString());
+            return false;
+        }
+        const QJsonObject pedald = QJsonDocument::fromJson(file.readAll()).object();
+        if (pedald.contains(QStringLiteral("http_port")))
+            m_pedaldPort = quint16(pedald.value(QStringLiteral("http_port")).toInt());
+    }
+    const QJsonObject pedald = root.value(QStringLiteral("pedald")).toObject();
+    if (pedald.contains(QStringLiteral("host")))
+        m_pedaldHost = pedald.value(QStringLiteral("host")).toString();
+    if (pedald.contains(QStringLiteral("port")))
+        m_pedaldPort = quint16(pedald.value(QStringLiteral("port")).toInt());
+
     const QJsonObject library = root.value(QStringLiteral("library")).toObject();
     if (library.contains(QStringLiteral("models")))
         m_modelsRoot = QDir::cleanPath(library.value(QStringLiteral("models")).toString());

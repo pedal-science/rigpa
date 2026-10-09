@@ -131,6 +131,7 @@ double EngineSession::recentWorstPercent(const QMap<int, qint64> &before, const 
 void EngineSession::applyStatus(const QJsonObject &status)
 {
     m_engineState = status.value(QStringLiteral("state")).toString();
+    m_paramsApplied = status.value(QStringLiteral("params_applied")).toInteger();
     m_health = status.value(QStringLiteral("health")).toString();
     m_xruns = status.value(QStringLiteral("xruns")).toInteger();
     m_sampleRate = status.value(QStringLiteral("sample_rate")).toInt();
@@ -164,19 +165,26 @@ void EngineSession::applyStatus(const QJsonObject &status)
     }
     m_histogram = histogram;
     m_haveHistogram = true;
-    emit statusChanged();
 
+    // The rig's fields before anyone hears about this status: a listener on statusChanged must
+    // never see the new status with the old rig (the startup rule would think nothing runs).
     const QString path = status.value(QStringLiteral("rig")).toString();
     QString name = status.value(QStringLiteral("rig_name")).toString();
+    const QString documentName = name;
     if (name.isEmpty() && !path.isEmpty())
         name = QFileInfo(path).completeBaseName();
     const qint64 generation = status.value(QStringLiteral("generation")).toInteger();
+    bool rigMoved = false;
     if (path != m_rigPath || name != m_rigName || generation != m_generation) {
+        m_documentName = documentName;
         m_rigPath = path;
         m_rigName = name;
         m_generation = generation;
-        emit rigChanged();
+        rigMoved = true;
     }
+    emit statusChanged();
+    if (rigMoved)
+        emit rigChanged();
 }
 
 void EngineSession::applyLevels(const QJsonObject &levels)
@@ -219,6 +227,7 @@ void EngineSession::clearReadings()
     if (!m_rigPath.isEmpty() || !m_rigName.isEmpty() || m_generation != 0) {
         m_rigPath.clear();
         m_rigName.clear();
+        m_documentName.clear();
         m_generation = 0;
         emit rigChanged();
     }

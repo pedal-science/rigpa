@@ -15,13 +15,16 @@
 # in dev/rigs/ are copied into .dev/library/rigs/ once; after that the copies are the dev pedal's
 # own (delete them to start again).
 #
+# RIGPA_DEV_DIR (default .dev), RIGPA_DEV_ENGINE_PORT and RIGPA_DEV_PEDALD_PORT run a second,
+# separate back end beside the first, for tests and tools.
+#
 # The null backend has no input, so the meters stay flat. RIGPA_DEV_INPUT=<a 48 kHz WAV> switches
 # to the coreaudio backend, which loops that file as the input and plays the rig through the
 # Mac's default output: the meters move, and you hear it.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-DEV=$ROOT/.dev
+DEV=${RIGPA_DEV_DIR:-$ROOT/.dev}
 NAMCHAIN=${NAMCHAIN:-$ROOT/../namchain}
 NAMCHAIND=$NAMCHAIN/build-mac/namchaind
 PEDAL_ROOTFS=${PEDAL_ROOTFS:-$ROOT/../pedal.project/devices/common/rootfs}
@@ -103,6 +106,7 @@ JSON
 [[ -e $DEV/rigpa.json ]] || cat > "$DEV/rigpa.json" <<JSON
 {
   "engine_config": "$DEV/namchaind.json",
+  "pedald_config": "$DEV/pedald.json",
   "settings_file": "$DEV/settings.ini"
 }
 JSON

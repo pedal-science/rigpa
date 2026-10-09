@@ -66,6 +66,11 @@ public:
     QString rigPath() const { return m_rigPath; }
     bool hasRig() const { return !m_rigPath.isEmpty() || m_generation > 0; }
     qint64 generation() const { return m_generation; }
+    // The document's own `name` ("" when it has none), unlike rigName, which falls back to the file.
+    QString documentName() const { return m_documentName; }
+    qint64 paramsApplied() const { return m_paramsApplied; }
+    // A status has arrived on this connection.
+    bool hasStatus() const { return m_haveHistogram; }
     QVariantList inputPeaks() const { return m_inputPeaks; }
     QVariantList outputPeaks() const { return m_outputPeaks; }
     bool metersEnabled() const { return m_metersEnabled; }
@@ -110,6 +115,8 @@ private:
     QString m_rigName;
     QString m_rigPath;
     qint64 m_generation = 0;
+    QString m_documentName;
+    qint64 m_paramsApplied = 0;
     QMap<int, qint64> m_histogram;
     bool m_haveHistogram = false;
     QVariantList m_inputPeaks;

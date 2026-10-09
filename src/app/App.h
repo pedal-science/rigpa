@@ -3,6 +3,9 @@
 #include "Config.h"
 #include "engine/EngineSession.h"
 #include "library/Library.h"
+#include "rig/RigEditorModel.h"
+#include "rig/RigList.h"
+#include "rig/RigSession.h"
 #include "Navigator.h"
 #include "Settings.h"
 
@@ -25,10 +28,14 @@ class App : public QObject
     Q_PROPERTY(rigpa::Navigator *nav READ nav CONSTANT)
     Q_PROPERTY(rigpa::EngineSession *engine READ engine CONSTANT)
     Q_PROPERTY(rigpa::Library *library READ library CONSTANT)
+    Q_PROPERTY(rigpa::RigList *rigs READ rigs CONSTANT)
+    Q_PROPERTY(rigpa::RigSession *rig READ rig CONSTANT)
+    Q_PROPERTY(rigpa::RigEditorModel *editor READ editor CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
-        Library *library, QObject *parent = nullptr);
+        Library *library, RigList *rigs, RigSession *rig, RigEditorModel *editor,
+        QObject *parent = nullptr);
     ~App() override;
 
     static App *create(QQmlEngine *, QJSEngine *);
@@ -38,6 +45,9 @@ public:
     Navigator *nav() const { return m_nav; }
     EngineSession *engine() const { return m_engine; }
     Library *library() const { return m_library; }
+    RigList *rigs() const { return m_rigs; }
+    RigSession *rig() const { return m_rig; }
+    RigEditorModel *editor() const { return m_editor; }
 
 private:
     Config *m_config;
@@ -45,6 +55,9 @@ private:
     Navigator *m_nav;
     EngineSession *m_engine;
     Library *m_library;
+    RigList *m_rigs;
+    RigSession *m_rig;
+    RigEditorModel *m_editor;
 };
 
 } // namespace rigpa

@@ -5,6 +5,10 @@
 #include "app/Settings.h"
 #include "engine/EngineSession.h"
 #include "library/Library.h"
+#include "pedald/PedaldClient.h"
+#include "rig/RigEditorModel.h"
+#include "rig/RigList.h"
+#include "rig/RigSession.h"
 
 #include <QCommandLineParser>
 #include <QDir>
@@ -62,7 +66,14 @@ int main(int argc, char *argv[])
     rigpa::Library library;
     library.setRoots(config.modelsRoot(), config.irsRoot());
     library.rescan();
-    rigpa::App appObject(&config, &settings, &nav, &engineSession, &library);
+    rigpa::PedaldClient pedald;
+    rigpa::RigList rigs(&pedald);
+    rigpa::RigSession rigSession(&engineSession, &rigs);
+    rigpa::RigEditorModel editor(&rigSession, &library);
+    rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor);
+
+    // The rotary and apply in rig view: load a rig from the list.
+    QObject::connect(&nav, &rigpa::Navigator::rigLoadRequested, &rigSession, &rigpa::RigSession::loadRig);
 
     engineSession.setMetersEnabled(settings.liveMeters());
     QObject::connect(&settings, &rigpa::Settings::liveMetersChanged, &engineSession,
@@ -70,6 +81,8 @@ int main(int argc, char *argv[])
     QString tokenProblem;
     const QString token = config.engineToken(&tokenProblem);
     engineSession.start(config.engineHost(), config.enginePort(), token, tokenProblem);
+    pedald.setEndpoint(config.pedaldHost(), config.pedaldPort(), token);
+    rigs.start();
 
     rigpa::DevInput devInput;
     devInput.setInverted(config.rotaryInverted());

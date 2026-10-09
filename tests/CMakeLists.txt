@@ -13,10 +13,13 @@ rigpa_test(tst_framing)
 rigpa_test(tst_engineclient)
 rigpa_test(tst_enginesession)
 rigpa_test(tst_library)
+rigpa_test(tst_flow)
+rigpa_test(tst_rig)
 
 # Against the real daemon, when namchain is built beside this repo (skipped otherwise).
 set(RIGPA_NAMCHAIN_BUILD "${PROJECT_SOURCE_DIR}/../namchain/build-mac" CACHE PATH
     "A namchain build with namchaind and generated/ test models, for the live tests")
 rigpa_test(tst_engine_live)
-set_tests_properties(tst_engine_live PROPERTIES ENVIRONMENT
+rigpa_test(tst_rig_live)
+set_tests_properties(tst_engine_live tst_rig_live PROPERTIES ENVIRONMENT
     "RIGPA_NAMCHAIND=${RIGPA_NAMCHAIN_BUILD}/namchaind;RIGPA_NAMCHAIN_MODELS=${RIGPA_NAMCHAIN_BUILD}/generated")
