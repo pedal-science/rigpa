@@ -5,7 +5,9 @@
 #include "app/Settings.h"
 #include "engine/EngineSession.h"
 #include "library/Library.h"
+#include "library/PickerModel.h"
 #include "pedald/PedaldClient.h"
+#include "rig/NodeEditorModel.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
@@ -70,7 +72,10 @@ int main(int argc, char *argv[])
     rigpa::RigList rigs(&pedald);
     rigpa::RigSession rigSession(&engineSession, &rigs);
     rigpa::RigEditorModel editor(&rigSession, &library);
-    rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor);
+    rigpa::NodeEditorModel nodeEditor(&rigSession, &engineSession, &editor, &library);
+    rigpa::PickerModel picker(&library);
+    rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor,
+                         &nodeEditor, &picker);
 
     // The rotary and apply in rig view: load a rig from the list.
     QObject::connect(&nav, &rigpa::Navigator::rigLoadRequested, &rigSession, &rigpa::RigSession::loadRig);

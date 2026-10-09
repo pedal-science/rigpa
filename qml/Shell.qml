@@ -27,18 +27,32 @@ Item {
             width: parent.width
             height: Theme.contentHeight
             clip: true
+            // While an overlay is open, the view under it takes no input.
+            readonly property bool overlaid: App.nodeEditor.isOpen || App.picker.isOpen
 
             RigView {
                 anchors.fill: parent
+                enabled: !content.overlaid
                 visible: App.nav.mainView === Navigator.RigView
             }
             BrowseView {
                 anchors.fill: parent
+                enabled: !content.overlaid
                 visible: App.nav.mainView === Navigator.BrowseView
             }
             SettingsView {
                 anchors.fill: parent
+                enabled: !content.overlaid
                 visible: App.nav.mainView === Navigator.SettingsView
+            }
+            // Overlays, over whichever view opened them.
+            NodeEditor {
+                anchors.fill: parent
+                visible: App.nodeEditor.isOpen
+            }
+            Picker {
+                anchors.fill: parent
+                visible: App.picker.isOpen
             }
         }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "EngineClient.h"
+#include "Schema.h"
 
 #include <QMap>
 #include <QObject>
@@ -51,6 +52,8 @@ public:
     void start(const QString &host, quint16 port, const QString &token, const QString &problem = {});
 
     EngineClient *client() { return &m_client; }
+    // The node catalogue, read once per connection (empty until it arrives).
+    const Schema &schema() const { return m_schema; }
 
     Connection connection() const;
     QString connectionText() const;
@@ -90,13 +93,16 @@ signals:
     void rigChanged();
     void levelsChanged();
     void metersEnabledChanged();
+    void schemaChanged();
 
 private:
     void pollStatus();
     void pollLevels();
+    void fetchSchema();
     void clearReadings();
 
     EngineClient m_client;
+    Schema m_schema;
     QTimer m_statusTimer;
     QTimer m_levelsTimer;
     bool m_statusInFlight = false;

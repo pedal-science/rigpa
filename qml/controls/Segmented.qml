@@ -7,6 +7,8 @@ Rectangle {
     property var labels: []
     property int current: 0
     property bool highlighted: false
+    property int segmentWidth: 120
+    property int fontSize: Theme.fontNormal
     signal chosen(int index)
 
     implicitWidth: row.implicitWidth + 8
@@ -24,7 +26,7 @@ Rectangle {
             delegate: Rectangle {
                 required property int index
                 required property string modelData
-                width: Math.max(120, label.implicitWidth + 32)
+                width: Math.max(segmented.segmentWidth, label.implicitWidth + 24)
                 height: 36
                 radius: 8
                 color: index === segmented.current ? Theme.panel : "transparent"
@@ -33,7 +35,7 @@ Rectangle {
                     anchors.centerIn: parent
                     text: parent.modelData
                     color: parent.index === segmented.current ? Theme.text : Theme.dim
-                    font.pixelSize: Theme.fontNormal
+                    font.pixelSize: segmented.fontSize
                 }
                 TapHandler { onTapped: segmented.chosen(parent.index) }
             }

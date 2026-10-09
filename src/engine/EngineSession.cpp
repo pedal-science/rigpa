@@ -19,6 +19,7 @@ EngineSession::EngineSession(QObject *parent) : QObject(parent)
             if (m_metersEnabled)
                 m_levelsTimer.start();
             pollStatus();
+            fetchSchema();
         } else {
             m_statusTimer.stop();
             m_levelsTimer.stop();
@@ -41,6 +42,18 @@ void EngineSession::start(const QString &host, quint16 port, const QString &toke
     }
     m_client.connectTo(host, port, token);
     emit connectionChanged();
+}
+
+void EngineSession::fetchSchema()
+{
+    if (!m_client.hasFeature(QStringLiteral("schema")))
+        return;
+    m_client.request(QStringLiteral("engine.schema"), {}, [this](const EngineReply &reply) {
+        if (!reply.ok)
+            return;
+        m_schema = Schema::parse(reply.body);
+        emit schemaChanged();
+    });
 }
 
 EngineSession::Connection EngineSession::connection() const

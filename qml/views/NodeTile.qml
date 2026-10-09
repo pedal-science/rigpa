@@ -16,9 +16,10 @@ Item {
     required property bool bypassed
     required property bool missing
     required property int select
+    required property string element
     property bool selected: false
     property bool strong: true
-    signal tapped()
+    signal tapped(int count)
 
     x: itemX; y: itemY; width: itemW; height: itemH
     z: kind === "section" ? 0 : 1
@@ -87,6 +88,6 @@ Item {
 
     TapHandler {
         enabled: tile.select >= 0
-        onTapped: tile.tapped()
+        onTapped: tile.tapped(tapCount)
     }
 }

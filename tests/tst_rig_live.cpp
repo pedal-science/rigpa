@@ -1,10 +1,8 @@
 // RigSession against a real namchaind started with no rig: the startup rule loads the first rig
 // in the list, and a rig loaded by another client is followed.
-#include <QProcess>
-#include <QTcpServer>
-#include <QTemporaryDir>
 #include <QtTest>
 
+#include "LiveDaemon.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
 
@@ -13,53 +11,13 @@ using namespace rigpa;
 class TestRigLive : public QObject
 {
     Q_OBJECT
-    QTemporaryDir dir;
-    QProcess daemon;
-    quint16 port = 0;
-    QString token = QStringLiteral("rigpa-rig-live-token-0123456789");
+    LiveDaemon daemon;
+    quint16 &port = daemon.port;
+    QString &token = daemon.token;
 
 private slots:
-    void initTestCase()
-    {
-        const QString namchaind = qEnvironmentVariable("RIGPA_NAMCHAIND");
-        const QString models = qEnvironmentVariable("RIGPA_NAMCHAIN_MODELS");
-        if (namchaind.isEmpty() || !QFile::exists(namchaind) || !QFile::exists(models + "/A2-Lite.nam"))
-            QSKIP("no built namchaind (RIGPA_NAMCHAIND) or test models (RIGPA_NAMCHAIN_MODELS)");
-        QDir().mkpath(dir.filePath("rigs"));
-        for (const char *rig : {"Clean", "Lead"})
-            QFile::copy(QFINDTESTDATA(QStringLiteral("../dev/rigs/%1.json").arg(QLatin1String(rig))),
-                        dir.filePath(QStringLiteral("rigs/%1.json").arg(QLatin1String(rig))));
-        QDir().mkpath(dir.filePath("lib"));
-        QFile::copy(models + "/A2-Lite.nam", dir.filePath("lib/A2-Lite.nam"));
-        QFile t(dir.filePath("token"));
-        QVERIFY(t.open(QIODevice::WriteOnly));
-        t.write(token.toUtf8());
-        t.close();
-        t.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-        {
-            QTcpServer probe;
-            QVERIFY(probe.listen(QHostAddress::LocalHost));
-            port = probe.serverPort();
-        }
-        daemon.setWorkingDirectory(dir.path());
-        daemon.setProcessChannelMode(QProcess::MergedChannels);
-        // No --rig: the engine starts running nothing.
-        daemon.start(namchaind, {"--backend", "null", "--no-lock-memory", "--rt-priority", "0",
-                                 "--socket", "d.sock", "--rigs-root", dir.filePath("rigs"),
-                                 "--models-root", dir.filePath("lib"), "--irs-root", dir.filePath("lib"),
-                                 "--tcp-listen", "--tcp-address", "127.0.0.1", "--tcp-port",
-                                 QString::number(port), "--tcp-token-file", dir.filePath("token")});
-        QVERIFY(daemon.waitForStarted());
-    }
-
-    void cleanupTestCase()
-    {
-        if (daemon.state() != QProcess::NotRunning) {
-            daemon.terminate();
-            if (!daemon.waitForFinished(3000))
-                daemon.kill();
-        }
-    }
+    // No rig at start: the engine runs nothing.
+    void initTestCase() { daemon.start({"Clean", "Lead"}); }
 
     void startupLoadsTheFirstRigThenFollowsOthers()
     {

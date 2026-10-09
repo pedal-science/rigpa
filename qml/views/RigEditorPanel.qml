@@ -50,6 +50,13 @@ Panel {
             scroll.restart()
         }
     }
+    Timer {
+        id: openLater
+        property int select: -1
+        interval: 300
+        onTriggered: App.openNodeEditor(select)
+    }
+
     NumberAnimation { id: scroll; target: flick; property: "contentY"; duration: 160; easing.type: Easing.OutCubic }
 
     Flickable {
@@ -74,10 +81,23 @@ Panel {
             delegate: NodeTile {
                 selected: select >= 0 && select === panel.ring.highlight
                 strong: panel.focused
-                onTapped: {
-                    if (select >= 0)
-                        panel.ring.highlight = select
+                // A tap selects; a tap on the node already selected opens its editor, once the
+                // double-tap window has passed; a double tap toggles bypass.
+                onTapped: (count) => {
+                    if (select < 0)
+                        return
                     App.nav.focusRigEditor()
+                    if (count >= 2) {
+                        openLater.stop()
+                        App.rig.toggleBypass(element)
+                        return
+                    }
+                    const wasSelected = panel.ring.highlight === select
+                    panel.ring.highlight = select
+                    if (wasSelected) {
+                        openLater.select = select
+                        openLater.restart()
+                    }
                 }
             }
         }

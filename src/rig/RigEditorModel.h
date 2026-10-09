@@ -74,6 +74,8 @@ public:
     Q_INVOKABLE QString elementAt(int select) const;
     Q_INVOKABLE int selectOf(const QString &element) const;
     Q_INVOKABLE QRectF rectOf(int select) const;
+    // The tile or frame showing an element, if it is laid out.
+    const Item *itemFor(const QString &element) const;
 
     // Lays out a document without a session (tests); the session's document otherwise.
     void layout(const RigDocument &doc, const QSet<QString> &missing);

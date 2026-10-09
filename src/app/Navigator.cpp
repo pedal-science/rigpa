@@ -159,6 +159,20 @@ void Navigator::closeOverlay()
     changed();
 }
 
+bool Navigator::hasOverlay(Overlay overlay) const
+{
+    for (const Layer &layer : m_overlays)
+        if (layer.overlay == overlay)
+            return true;
+    return false;
+}
+
+void Navigator::closeOverlaysFrom(Overlay overlay)
+{
+    while (hasOverlay(overlay))
+        closeOverlay();
+}
+
 void Navigator::setRigFocus(RigFocus focus)
 {
     if (focus == m_rigFocus)

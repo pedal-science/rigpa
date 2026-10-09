@@ -64,6 +64,9 @@ public:
     // An overlay brings its own ring (the node editor's controls, a picker's list).
     Q_INVOKABLE void openOverlay(rigpa::Navigator::Overlay overlay, rigpa::FocusRing *ring);
     Q_INVOKABLE void closeOverlay();
+    // Whether `overlay` is open anywhere in the stack, and closing it with everything above it.
+    bool hasOverlay(Overlay overlay) const;
+    void closeOverlaysFrom(Overlay overlay);
 
 signals:
     void mainViewChanged();

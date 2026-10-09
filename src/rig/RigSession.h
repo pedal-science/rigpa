@@ -2,6 +2,7 @@
 
 #include "RigDocument.h"
 #include "RigList.h"
+#include "engine/EditStream.h"
 #include "engine/EngineSession.h"
 
 #include <QObject>
@@ -39,6 +40,22 @@ public:
     Q_INVOKABLE void loadRig(int index);
     Q_INVOKABLE void loadRigNamed(const QString &name);
 
+    // An element (a block or a section) of the document, and the chain it is in.
+    const RigElement *findElement(const QString &element, QString *chainId = nullptr) const;
+    // Whether exactly one macro node in a chain carries `element`: then the engine can be asked to
+    // ramp that macro's parameters by element (EditStream::target).
+    bool macroElementIsUnique(const QString &chainId, const QString &element) const;
+
+    // Small edits, through the edit stream. Bypass is every bypassable node of the block at once
+    // (a crossfade, no rebuild); a parameter goes to one node.
+    bool isBypassed(const QString &element) const;
+    Q_INVOKABLE void setBypass(const QString &element, bool bypassed);
+    Q_INVOKABLE void toggleBypass(const QString &element) { setBypass(element, !isBypassed(element)); }
+    void setParam(const QString &chainId, const RigNode &node, const QString &param, const QJsonValue &value);
+    EditStream *edits() { return &m_edits; }
+    // Reads the document again (after an edit the engine's status doesn't show).
+    void refresh() { fetchDocument(); }
+
     // For tests: which library rig an engine status names.
     static QString runningName(const QString &rigPath, const QString &rigName, const QStringList &names);
 
@@ -54,6 +71,7 @@ private:
 
     EngineSession *m_engine;
     RigList *m_rigs;
+    EditStream m_edits;
     RigDocument m_document;
     bool m_hasDocument = false;
     QSet<QString> m_missing;

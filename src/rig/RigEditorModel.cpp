@@ -116,7 +116,7 @@ void RigEditorModel::describe(const RigElement &e, Item &item) const
     if (e.kind == RigElement::Section) {
         item.kind = QStringLiteral("section");
         item.title = tr("Parallel");
-        item.subtitle = tr("%n lane(s)", nullptr, int(e.lanes.size()));
+        item.subtitle = e.lanes.size() == 1 ? tr("1 lane") : tr("%1 lanes").arg(e.lanes.size());
         item.color = QStringLiteral("#d0c060");
         item.bypassed = e.split.bypass;
         return;
@@ -296,6 +296,14 @@ QRectF RigEditorModel::rectOf(int select) const
         if (i.select == select)
             return i.rect;
     return {};
+}
+
+const RigEditorModel::Item *RigEditorModel::itemFor(const QString &element) const
+{
+    for (const Item &item : m_items)
+        if (item.select >= 0 && item.element == element)
+            return &item;
+    return nullptr;
 }
 
 int RigEditorModel::rowCount(const QModelIndex &parent) const

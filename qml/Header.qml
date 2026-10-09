@@ -6,6 +6,8 @@ Rectangle {
     color: Theme.background
 
     readonly property bool inRigView: App.nav.mainView === Navigator.RigView
+    // The node editor names its block here; the rig is still running underneath.
+    readonly property bool editingNode: App.nodeEditor.isOpen
 
     Text {
         id: title
@@ -15,7 +17,10 @@ Rectangle {
         color: Theme.text
         font.pixelSize: Theme.fontTitle
         font.weight: Font.DemiBold
-        text: App.nav.mainView === Navigator.BrowseView ? qsTr("Browse")
+        width: Math.min(implicitWidth, 700)
+        elide: Text.ElideRight
+        text: parent.editingNode ? App.nodeEditor.title
+            : App.nav.mainView === Navigator.BrowseView ? qsTr("Browse")
             : App.nav.mainView === Navigator.SettingsView ? qsTr("Settings")
             : qsTr("Rig")
     }
@@ -24,10 +29,10 @@ Rectangle {
         anchors.left: title.right
         anchors.leftMargin: 20
         anchors.baseline: title.baseline
-        color: App.engine.hasRig ? Theme.text : Theme.dim
+        color: App.engine.hasRig && !parent.editingNode ? Theme.text : Theme.dim
         font.pixelSize: Theme.fontLarge
         elide: Text.ElideRight
-        width: Math.min(implicitWidth, 900)
+        width: Math.min(implicitWidth, 600)
         text: App.engine.connection !== EngineSession.Connected ? "\u2014"
             : App.engine.hasRig ? (App.engine.rigName !== "" ? App.engine.rigName : qsTr("(unnamed rig)"))
             : qsTr("no rig running")
@@ -38,7 +43,7 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
-        visible: parent.inRigView
+        visible: parent.inRigView && !parent.editingNode
         HeaderButton { label: "+"; enabled: false }
         HeaderButton { label: qsTr("Undo"); enabled: false }
         HeaderButton { label: qsTr("Redo"); enabled: false }

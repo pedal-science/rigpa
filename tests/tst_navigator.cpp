@@ -150,6 +150,22 @@ private slots:
         QCOMPARE(nav.rigFocus(), Navigator::RigEditorFocus);
     }
 
+    void closingAnOverlayClosesWhatIsAboveIt()
+    {
+        Navigator nav;
+        FocusRing editor, picker;
+        editor.setCount(1);
+        picker.setCount(1);
+        nav.openOverlay(Navigator::NodeEditor, &editor);
+        nav.openOverlay(Navigator::Picker, &picker);
+        QVERIFY(nav.hasOverlay(Navigator::NodeEditor));
+        QVERIFY(!nav.hasOverlay(Navigator::Palette));
+        nav.closeOverlaysFrom(Navigator::NodeEditor);
+        QCOMPARE(nav.overlay(), Navigator::NoOverlay);
+        nav.closeOverlaysFrom(Navigator::Picker); // nothing open: nothing happens
+        QCOMPARE(nav.activeRing(), nav.rigEditor());
+    }
+
     void menuClosesOverlays()
     {
         Navigator nav;

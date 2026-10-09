@@ -21,14 +21,18 @@ qt_add_qml_module(rigpa_core
         src/app/FocusRing.cpp src/app/FocusRing.h
         src/app/Navigator.cpp src/app/Navigator.h
         src/app/Settings.cpp src/app/Settings.h
+        src/engine/EditStream.cpp src/engine/EditStream.h
         src/engine/EngineClient.cpp src/engine/EngineClient.h
         src/engine/EngineSession.cpp src/engine/EngineSession.h
         src/engine/Framing.cpp src/engine/Framing.h
+        src/engine/Schema.cpp src/engine/Schema.h
         src/library/Library.cpp src/library/Library.h
         src/library/MakeHeuristics.cpp src/library/MakeHeuristics.h
+        src/library/PickerModel.cpp src/library/PickerModel.h
         src/library/Sniff.cpp src/library/Sniff.h
         src/layout/Flow.cpp src/layout/Flow.h
         src/pedald/PedaldClient.cpp src/pedald/PedaldClient.h
+        src/rig/NodeEditorModel.cpp src/rig/NodeEditorModel.h
         src/rig/RigDocument.cpp src/rig/RigDocument.h
         src/rig/RigEditorModel.cpp src/rig/RigEditorModel.h
         src/rig/RigList.cpp src/rig/RigList.h
@@ -57,12 +61,15 @@ qt_add_qml_module(rigpa
         qml/views/RigListPanel.qml
         qml/views/RigEditorPanel.qml
         qml/views/NodeTile.qml
+        qml/views/NodeEditor.qml
+        qml/views/Picker.qml
         qml/controls/MenuButton.qml
         qml/controls/Panel.qml
         qml/controls/ValueBar.qml
         qml/controls/Toggle.qml
         qml/controls/Segmented.qml
         qml/controls/HeaderButton.qml
+        qml/controls/Knob.qml
     RESOURCES
         resources/icons/rigpa.svg
         resources/icons/folder.svg

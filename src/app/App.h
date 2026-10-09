@@ -3,6 +3,8 @@
 #include "Config.h"
 #include "engine/EngineSession.h"
 #include "library/Library.h"
+#include "library/PickerModel.h"
+#include "rig/NodeEditorModel.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
@@ -31,11 +33,13 @@ class App : public QObject
     Q_PROPERTY(rigpa::RigList *rigs READ rigs CONSTANT)
     Q_PROPERTY(rigpa::RigSession *rig READ rig CONSTANT)
     Q_PROPERTY(rigpa::RigEditorModel *editor READ editor CONSTANT)
+    Q_PROPERTY(rigpa::NodeEditorModel *nodeEditor READ nodeEditor CONSTANT)
+    Q_PROPERTY(rigpa::PickerModel *picker READ picker CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
         Library *library, RigList *rigs, RigSession *rig, RigEditorModel *editor,
-        QObject *parent = nullptr);
+        NodeEditorModel *nodeEditor, PickerModel *picker, QObject *parent = nullptr);
     ~App() override;
 
     static App *create(QQmlEngine *, QJSEngine *);
@@ -48,6 +52,14 @@ public:
     RigList *rigs() const { return m_rigs; }
     RigSession *rig() const { return m_rig; }
     RigEditorModel *editor() const { return m_editor; }
+    NodeEditorModel *nodeEditor() const { return m_nodeEditor; }
+    PickerModel *picker() const { return m_picker; }
+
+    // Opens the node editor on the rig editor's selectable `select` (apply, or a tap on the
+    // selected tile), over the rig view.
+    Q_INVOKABLE void openNodeEditor(int select);
+    // Closes the node editor and anything open over it.
+    Q_INVOKABLE void closeNodeEditor();
 
 private:
     Config *m_config;
@@ -58,6 +70,8 @@ private:
     RigList *m_rigs;
     RigSession *m_rig;
     RigEditorModel *m_editor;
+    NodeEditorModel *m_nodeEditor;
+    PickerModel *m_picker;
 };
 
 } // namespace rigpa

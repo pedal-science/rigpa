@@ -4,22 +4,35 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **M4 done (2026-10-09), awaiting the owner's review.** The rig view:
-  - the rig list from pedald (`GET /library/rigs`), polled every 5 s, the running rig marked
-    (by file, or by document name after a resume); a tap, or rotary and apply, loads a rig;
-  - the editor: `RigDocument` reads `rig.get`'s graph back into blocks (nodes sharing an
-    `element`) and split/mix sections with lanes; anything else is shown read-only.
-    `RigEditorModel` lays each chain out with ljoss's flow layout (ported with its tests,
-    `src/layout/Flow.*`), sections as one flow item with stacked lanes, and numbers blocks and
-    sections in signal order for the rotary; selection survives a re-read;
-  - following others: any move of the engine's rig, generation or `params_applied` re-reads it;
-    the startup rule loads the first rig only when the engine runs nothing.
-  - Found and fixed: a first status was announced before its rig fields were set, so a fresh
-    rigpa loaded the first rig over a running one (`tst_rig_live` now guards it).
-- `dev-pedal` takes `RIGPA_DEV_DIR` and port overrides, so a second back end can run beside yours.
-- Earlier: M3 (library, browse), P1 (pedald rig API, pedal.project `70a6d35`), M2, M1, M0.
-- **Next: M5** (the node editor, bypass, the model/IR picker, knob streaming) once M4 is
-  reviewed. Nothing touches vip before M9, and M9 starts only with the owner's go-ahead.
+- **M5 done (2026-10-09), awaiting the owner's review.** The node editor:
+  - `Schema` reads `engine.schema` once per connection; `NodeEditorModel` builds one control per
+    visible, patchable parameter of the block's nodes, in reading order: knobs for numbers
+    (logarithmic where the schema says, open ends given a stand-in by unit), segmented choices for
+    up to five options, stepped knobs for more, toggles for flags, and a picker for a model or IR.
+    One of a `one_of` group is shown (the one the node sets). The grid shrinks until it fits.
+  - The ring is the controls, then Bypass, then Close. Apply on Close, a choice or Bypass acts;
+    on a knob it selects it and the rotary turns it. Opened by apply in the rig editor or a tap
+    on the selected tile once the 300 ms double-tap window has passed; a double tap bypasses.
+  - `EditStream`: `rig.patch` ops, one in flight, at most every 10 ms, a waiting op replaced by
+    a newer one for the same parameter. Rampable numbers stream as they move; anything else is
+    sent on release, deselect or choice. Primitives are addressed by node, a macro by element
+    when its element has one macro (the engine ramps it only then: tried, `smooth` vs a
+    structural ramp by node). Bypass is a `bypass` op per bypassable node of the block (by
+    element is refused when a block has two nodes). A model or IR is a `set_param` of its
+    reference (`swap_model` behaves the same).
+  - The picker (`PickerModel`) lists the library's models or IRs, opened on the current one.
+  - A parallel section opens an editor that says its lanes come later (M7).
+  - Tests: `tst_schema` and `tst_edit_live` (streaming without a new generation, bypass, model
+    swap, an option, coalescing a 101-step drag into at most three patches). The live daemon now
+    has two channels, so the Dual fixture loads.
+  - Uses `QtQuick.Shapes` for the knobs: vip will need `qml6-module-qtquick-shapes` (V1).
+  - Not done: parameter summaries on tiles (no room on a 96 px tile beside a two-line title;
+    revisit with the real screen).
+- Earlier: M4 (rig view), M3 (library, browse), P1 (pedald rig API, pedal.project `70a6d35`),
+  M2, M1, M0. `dev-pedal` takes `RIGPA_DEV_DIR` and port overrides, so a second back end can run
+  beside yours.
+- **Next: M6** (drag and drop) once M5 is reviewed. Nothing touches vip before M9, and M9 starts
+  only with the owner's go-ahead.
 
 ## Why
 
@@ -250,7 +263,8 @@ Nothing touches vip before M9. Each step that touches vip waits for your go‑ah
 2. **pedal.project**, one commit per concern:
    - `config-pedal.txt` gets `dtoverlay=vc4-kms-v3d`, and its comment is rewritten.
    - `devices/vip/packages` gets the Qt 6.10 runtime, Mesa, libinput and fonts:
-     - Qt: `libqt6opengl6` holds `eglfs` and `eglfs-kms`; plus the `qml6-module-*` modules,
+     - Qt: `libqt6opengl6` holds `eglfs` and `eglfs-kms`; plus the `qml6-module-*` modules (including
+       `qml6-module-qtquick-shapes`, for the knobs),
        `qt6-virtualkeyboard-plugin`, and `qt6-qpa-plugins` for VNC.
      - Mesa: `libegl-mesa0`, `libgbm1`, `libgles2`, `mesa-libgallium`.
      - The list is derived from the container build with `ldd` and `qmlimportscanner`, and

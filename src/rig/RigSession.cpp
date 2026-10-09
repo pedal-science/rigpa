@@ -2,12 +2,23 @@
 
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QJsonObject>
 
 namespace rigpa {
 
 RigSession::RigSession(EngineSession *engine, RigList *rigs, QObject *parent)
-    : QObject(parent), m_engine(engine), m_rigs(rigs)
+    : QObject(parent), m_engine(engine), m_rigs(rigs), m_edits(engine->client())
 {
+    // A smooth edit shows up as params_applied moving; a bypass or a structural set doesn't move
+    // anything the status shows, so read the document again once the engine has answered.
+    connect(&m_edits, &EditStream::answered, this, [this](const QString &kind) {
+        if (kind != QLatin1String("smooth"))
+            fetchDocument();
+    });
+    connect(&m_edits, &EditStream::refused, this, [this](const QString &message) {
+        say(tr("The engine refused the edit: %1").arg(message));
+        fetchDocument();
+    });
     connect(m_engine, &EngineSession::rigChanged, this, [this] {
         updateRunning();
         if (m_engine->connection() == EngineSession::Connected && m_engine->hasRig())
@@ -85,7 +96,8 @@ void RigSession::loadRigNamed(const QString &name)
             return;
         }
         const int missing = int(reply.body.value(QStringLiteral("missing_assets")).toArray().size());
-        say(missing > 0 ? tr("%1: %n model(s) or IR(s) missing", nullptr, missing).arg(name) : QString());
+        say(missing > 0 ? (missing == 1 ? tr("%1: a model or IR is missing").arg(name)
+                                         : tr("%1: %2 models or IRs are missing").arg(name).arg(missing)) : QString());
         m_rigs->setRunning(name);
         fetchDocument();
     });
@@ -111,6 +123,110 @@ void RigSession::fetchDocument()
         if (std::exchange(m_fetchAgain, false))
             fetchDocument();
     });
+}
+
+namespace {
+
+const RigElement *findIn(const QList<RigElement> &series, const QString &element)
+{
+    for (const RigElement &e : series) {
+        if (e.element == element)
+            return &e;
+        for (const auto &lane : e.lanes)
+            if (const RigElement *found = findIn(lane, element))
+                return found;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+const RigElement *RigSession::findElement(const QString &element, QString *chainId) const
+{
+    if (element.isEmpty())
+        return nullptr;
+    for (const RigChain &chain : m_document.chains) {
+        if (const RigElement *found = findIn(chain.series, element)) {
+            if (chainId)
+                *chainId = chain.id;
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+bool RigSession::macroElementIsUnique(const QString &chainId, const QString &element) const
+{
+    const Schema &schema = m_engine->schema();
+    for (const auto &c : m_document.json.value(QStringLiteral("chains")).toArray()) {
+        const QJsonObject chain = c.toObject();
+        if (chain.value(QStringLiteral("id")).toString() != chainId)
+            continue;
+        int macros = 0;
+        for (const auto &n : chain.value(QStringLiteral("nodes")).toArray()) {
+            const QJsonObject o = n.toObject();
+            const NodeTypeSpec *t = schema.type(o.value(QStringLiteral("type")).toString());
+            if (t && t->macro && o.value(QStringLiteral("element")).toString() == element)
+                ++macros;
+        }
+        return macros == 1;
+    }
+    return false;
+}
+
+bool RigSession::isBypassed(const QString &element) const
+{
+    const RigElement *e = findElement(element);
+    if (!e || e->kind != RigElement::Block)
+        return false;
+    const Schema &schema = m_engine->schema();
+    bool any = false;
+    for (const RigNode &n : e->nodes) {
+        const NodeTypeSpec *t = schema.type(n.type);
+        if (t && !t->bypassable)
+            continue;
+        if (!n.bypass)
+            return false;
+        any = true;
+    }
+    return any;
+}
+
+void RigSession::setBypass(const QString &element, bool bypassed)
+{
+    QString chainId;
+    const RigElement *e = findElement(element, &chainId);
+    if (!e)
+        return;
+    if (e->kind != RigElement::Block) {
+        say(tr("A parallel section can't be bypassed"));
+        return;
+    }
+    const Schema &schema = m_engine->schema();
+    QList<QPair<QString, QJsonObject>> ops;
+    for (const RigNode &n : e->nodes) {
+        const NodeTypeSpec *t = schema.type(n.type);
+        if (t && !t->bypassable)
+            continue;
+        ops.append({n.id + QStringLiteral("#bypass"),
+                    QJsonObject{{QStringLiteral("op"), QStringLiteral("bypass")},
+                                {QStringLiteral("node"), n.id},
+                                {QStringLiteral("bypass"), bypassed}}});
+    }
+    if (!ops.isEmpty())
+        m_edits.submit(chainId, ops);
+}
+
+void RigSession::setParam(const QString &chainId, const RigNode &node, const QString &param, const QJsonValue &value)
+{
+    const NodeTypeSpec *t = m_engine->schema().type(node.type);
+    const bool macro = t && t->macro;
+    QJsonObject op = EditStream::target(node.id, node.element, macro,
+                                        macro && macroElementIsUnique(chainId, node.element));
+    op.insert(QStringLiteral("op"), QStringLiteral("set_param"));
+    op.insert(QStringLiteral("param"), param);
+    op.insert(QStringLiteral("value"), value);
+    m_edits.submit(chainId, node.id + u'#' + param, op);
 }
 
 void RigSession::say(const QString &message)
