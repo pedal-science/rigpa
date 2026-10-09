@@ -15,7 +15,7 @@
           "id": "7A1C2E4F-0001-4000-8000-000000000001-nam",
           "type": "nc.nam",
           "element": "7A1C2E4F-0001-4000-8000-000000000001",
-          "model": "A2-Lite"
+          "model": "NAM Ampeg VT-40/Ampeg VT-40 - Vol 2, Bass 6, Mid 5, Treble 8, M160"
         },
         {
           "id": "7A1C2E4F-0001-4000-8000-000000000001-tone",
@@ -29,7 +29,7 @@
           "id": "7A1C2E4F-0001-4000-8000-000000000002-cab",
           "type": "fx.cab.ir",
           "element": "7A1C2E4F-0001-4000-8000-000000000002",
-          "ir": "CabIR",
+          "ir": "Mesa_OS_4x12_57_m160",
           "low_cut": 80,
           "high_cut": 9000
         },

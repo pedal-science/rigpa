@@ -18,10 +18,16 @@
           "gain_db": 3
         },
         {
+          "id": "7A1C2E4F-0001-4000-8000-000000000007-nam",
+          "type": "nc.nam",
+          "element": "7A1C2E4F-0001-4000-8000-000000000007",
+          "model": "Boss SD-1 Super Overdrive/APP-SD1-Boost-II"
+        },
+        {
           "id": "7A1C2E4F-0001-4000-8000-000000000004-nam",
           "type": "nc.nam",
           "element": "7A1C2E4F-0001-4000-8000-000000000004",
-          "model": "A2-Full"
+          "model": "2015 Orange Rockerverb 100 MK III (A2)/ORNG-V30-421-Center"
         },
         {
           "id": "7A1C2E4F-0001-4000-8000-000000000005-delay",
@@ -30,12 +36,6 @@
           "time": 380,
           "feedback": 0.35,
           "mix": 0.25
-        },
-        {
-          "id": "7A1C2E4F-0001-4000-8000-000000000006-cab",
-          "type": "fx.cab.ir",
-          "element": "7A1C2E4F-0001-4000-8000-000000000006",
-          "ir": "CabIR"
         },
         {
           "id": "out",
@@ -52,6 +52,12 @@
         {
           "from": "7A1C2E4F-0001-4000-8000-000000000003-gain",
           "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000007-nam",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000007-nam",
+          "from_port": 0,
           "to": "7A1C2E4F-0001-4000-8000-000000000004-nam",
           "to_port": 0
         },
@@ -63,12 +69,6 @@
         },
         {
           "from": "7A1C2E4F-0001-4000-8000-000000000005-delay",
-          "from_port": 0,
-          "to": "7A1C2E4F-0001-4000-8000-000000000006-cab",
-          "to_port": 0
-        },
-        {
-          "from": "7A1C2E4F-0001-4000-8000-000000000006-cab",
           "from_port": 0,
           "to": "out",
           "to_port": 0

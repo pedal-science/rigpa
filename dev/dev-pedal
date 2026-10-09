@@ -9,10 +9,11 @@
 #
 #   mise run run -- --config .dev/rigpa.json
 #
-# The library is namchain's generated test models (A2-Lite, A2-Full, CabIR) unless
-# RIGPA_DEV_LIBRARY names a folder with NAM/ and IRs/ in it (the layout of ~/Documents/Audio, which
-# is what sync-library sends to the pedal, so ids match). The fixture rigs in dev/rigs/ are copied
-# into .dev/library/rigs/ once; after that the copies are the dev pedal's own.
+# The library is ~/Documents/Audio's NAM/ and IRs/ (what sync-library sends to the pedal, so the
+# ids match vip's), or RIGPA_DEV_LIBRARY's; it is only ever read. Without one, namchain's
+# generated test models stand in, and the fixture rigs' models show as missing. The fixture rigs
+# in dev/rigs/ are copied into .dev/library/rigs/ once; after that the copies are the dev pedal's
+# own (delete them to start again).
 #
 # The null backend has no input, so the meters stay flat. RIGPA_DEV_INPUT=<a 48 kHz WAV> switches
 # to the coreaudio backend, which loops that file as the input and plays the rig through the
@@ -32,11 +33,18 @@ die() { printf 'dev-pedal: %s\n' "$*" >&2; exit 1; }
 [[ -x $NAMCHAIND ]] || die "no $NAMCHAIND: build it with 'cmake --build build-mac --target namchaind' in $NAMCHAIN"
 [[ -d $PEDALD_LIB/pedald ]] || die "no pedald in $PEDALD_LIB"
 
+for port in "$ENGINE_PORT" "$PEDALD_PORT"; do
+  if nc -z 127.0.0.1 "$port" 2>/dev/null; then
+    die "something already listens on 127.0.0.1:$port (another dev-pedal?): $(lsof -nP -iTCP:"$port" -sTCP:LISTEN 2>/dev/null | awk 'NR==2 {print $1, "pid", $2}')"
+  fi
+done
+
 mkdir -p "$DEV/logs" "$DEV/state" "$DEV/library/rigs"
 
-if [[ -n ${RIGPA_DEV_LIBRARY:-} ]]; then
-  MODELS=$RIGPA_DEV_LIBRARY/NAM
-  IRS=$RIGPA_DEV_LIBRARY/IRs
+LIBRARY=${RIGPA_DEV_LIBRARY:-$HOME/Documents/Audio}
+if [[ -d $LIBRARY/NAM && -d $LIBRARY/IRs ]]; then
+  MODELS=$LIBRARY/NAM
+  IRS=$LIBRARY/IRs
 else
   MODELS=$DEV/library/models
   IRS=$DEV/library/irs
