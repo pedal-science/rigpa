@@ -34,6 +34,7 @@ qt_add_qml_module(rigpa_core
         src/pedald/PedaldClient.cpp src/pedald/PedaldClient.h
         src/rig/NodeEditorModel.cpp src/rig/NodeEditorModel.h
         src/rig/RigDocument.cpp src/rig/RigDocument.h
+        src/rig/RigEdits.cpp src/rig/RigEdits.h
         src/rig/RigEditorModel.cpp src/rig/RigEditorModel.h
         src/rig/RigList.cpp src/rig/RigList.h
         src/rig/RigSession.cpp src/rig/RigSession.h
@@ -61,6 +62,7 @@ qt_add_qml_module(rigpa
         qml/views/RigListPanel.qml
         qml/views/RigEditorPanel.qml
         qml/views/NodeTile.qml
+        qml/views/TileFace.qml
         qml/views/NodeEditor.qml
         qml/views/Picker.qml
         qml/controls/MenuButton.qml

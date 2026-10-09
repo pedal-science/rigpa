@@ -6,6 +6,7 @@
 
 #include "LiveDaemon.h"
 #include "rig/NodeEditorModel.h"
+#include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
 
@@ -158,6 +159,48 @@ private slots:
         QSignalSpy closing(&editor, &NodeEditorModel::closeRequested);
         editor.ring()->activated(editor.closeIndex());
         QCOMPARE(closing.size(), 1);
+    }
+
+    // A drag in the rig editor: the cab lifted and dropped before the amp. The preview is the
+    // document the drop applies, and the engine ends up running it.
+    void dragAndDropReordersTheChain()
+    {
+        QVERIFY(load("Clean"));
+        RigEditorModel view(&session, nullptr);
+        view.setAvailableWidth(1200);
+        const QString cab = QStringLiteral("7A1C2E4F-0001-4000-8000-000000000002");
+        QVERIFY(view.lift(cab));
+        QVERIFY(view.dragging());
+        // Just right of In, on its row: slot 0.
+        const QRectF amp = view.itemFor(kAmp)->rect;
+        view.dragTo(QPointF(amp.left() + 10, amp.center().y()));
+        QCOMPARE(view.dropPlace(), (edits::Place{0, {}, 0}));
+        // The preview already has the cab first: the amp's tile has stepped right.
+        QVERIFY(view.itemFor(kAmp)->rect.left() > amp.left());
+        QCOMPARE(view.itemFor(cab)->lift, 1);
+
+        const qint64 generation = engine.generation();
+        view.drop();
+        QVERIFY(!view.dragging());
+        QCOMPARE(session.document().chains[0].series.first().element, cab); // shown at once
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        QTRY_VERIFY_WITH_TIMEOUT(engine.generation() > generation, 5000);
+        session.refresh();
+        QTest::qWait(300);
+        QCOMPARE(session.document().chains[0].series.first().element, cab); // as the engine has it
+        QVERIFY(session.document().chains[0].editable);
+    }
+
+    void dropOnTrashRemoves()
+    {
+        RigEditorModel view(&session, nullptr);
+        view.setAvailableWidth(1200);
+        QVERIFY(view.lift(kAmp));
+        view.dropOnTrash();
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
+        session.refresh();
+        QTRY_VERIFY_WITH_TIMEOUT(!session.findElement(kAmp), 5000);
+        QCOMPARE(session.document().chains[0].series.size(), 1);
     }
 };
 

@@ -40,6 +40,7 @@ struct RigChain {
     // `problem` says why it can't be edited.
     bool editable = true;
     QString problem;
+    QJsonObject json;             // the chain as received: its other keys survive an edit
 };
 
 struct RigDocument {

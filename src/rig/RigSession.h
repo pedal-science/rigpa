@@ -53,6 +53,11 @@ public:
     Q_INVOKABLE void toggleBypass(const QString &element) { setBypass(element, !isBypassed(element)); }
     void setParam(const QString &chainId, const RigNode &node, const QString &param, const QJsonValue &value);
     EditStream *edits() { return &m_edits; }
+    // A structural change (a move, an added or removed node): the whole document, as one
+    // `rig.apply`. Until the engine answers, `document()` is the edited one, so the editor shows
+    // the change at once; a refusal is said in the footer and the engine's document read back.
+    void applyDocument(const RigDocument &edited);
+    bool applying() const { return m_applying > 0; }
     // Reads the document again (after an edit the engine's status doesn't show).
     void refresh() { fetchDocument(); }
 
@@ -76,6 +81,7 @@ private:
     bool m_hasDocument = false;
     QSet<QString> m_missing;
     QString m_message;
+    int m_applying = 0;
     bool m_fetching = false;
     bool m_fetchAgain = false;
     bool m_startupDone = false;

@@ -48,7 +48,11 @@ int main(int argc, char *argv[])
         QStringLiteral("Replay hardware controls once loaded (for demos and checks): '>' and '<' turn "
                        "the rotary, '.' is apply, ',' is back."),
         QStringLiteral("keys"));
-    parser.addOptions({configOption, screenshotOption, viewOption, inputOption});
+    const QCommandLineOption demoDragOption(QStringLiteral("demo-drag"),
+        QStringLiteral("For demos: lift the rig editor's node <from> and hold it over the left edge of "
+                       "node <to> (both counted in signal order), without dropping."),
+        QStringLiteral("from:to"));
+    parser.addOptions({configOption, screenshotOption, viewOption, inputOption, demoDragOption});
     parser.process(app);
 
     rigpa::Config config;
@@ -118,6 +122,16 @@ int main(int argc, char *argv[])
                 else if (c == u'.') nav.apply();
                 else if (c == u',') nav.back();
             }
+        });
+    }
+
+    if (parser.isSet(demoDragOption)) {
+        const QStringList ends = parser.value(demoDragOption).split(u':');
+        QTimer::singleShot(1500, &app, [&editor, ends] {
+            const int from = ends.value(0).toInt(), to = ends.value(1).toInt();
+            const QRectF target = editor.rectOf(to);
+            if (editor.lift(editor.elementAt(from)))
+                editor.dragTo(QPointF(target.left() + 12, target.center().y()));
         });
     }
 

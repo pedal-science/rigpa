@@ -4,6 +4,28 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
+- **The owner asked (2026-10-09) for M6, M7 and M8 to run on without a review pause each; they
+  review after M8.** Also asked for and done: a double tap on a knob resets it to its default.
+- **M6 done (2026-10-09).** Drag and drop:
+  - `RigEdits` (`src/rig/RigEdits.*`): move, insert, take and remove on the editor's tree, and
+    the tree written back as an engine document (every node object, chain key and document key
+    kept; a bare graph stays bare). A place is a chain, a path of `<section element>/<lane>`, and
+    a slot counted without the moving element.
+  - `RigEditorModel`: lift, dragTo, drop, dropOnTrash, cancelDrag. While lifted, the layout is the
+    document *with the move already made*, so the other tiles step aside, rows re-wrap, and a
+    section grows round a lane drop; the drop applies exactly that. Hit testing: the deepest
+    container (a lane, else a chain, else the nearest chain) and ljoss's `flowhit` within it.
+    A layout of the same tiles updates delegates in place (they glide, 140 ms), anything else
+    resets the model.
+  - `RigSession::applyDocument`: one `rig.apply`, shown at once; reads that started before the
+    apply are ignored until it is answered; a refusal is said in the footer and the engine's
+    document read back.
+  - QML: a long press lifts (a finger; a mouse or trackpad drags at once), a ghost follows the
+    pointer, a Remove zone appears bottom right, and the view auto-scrolls near its edges
+    (900 px/s × depth²). Block looks moved into `TileFace.qml`, shared with the ghost.
+  - `--demo-drag from:to` holds a lifted node over another, for screenshots.
+  - Tests: `tst_edits` (round trip, moves within, into and out of lanes, refusals, removal) and
+    two live cases (a drag reorders what the engine runs; the trash removes).
 - **M5 done (2026-10-09), awaiting the owner's review.** The node editor:
   - `Schema` reads `engine.schema` once per connection; `NodeEditorModel` builds one control per
     visible, patchable parameter of the block's nodes, in reading order: knobs for numbers
@@ -31,8 +53,8 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 - Earlier: M4 (rig view), M3 (library, browse), P1 (pedald rig API, pedal.project `70a6d35`),
   M2, M1, M0. `dev-pedal` takes `RIGPA_DEV_DIR` and port overrides, so a second back end can run
   beside yours.
-- **Next: M6** (drag and drop) once M5 is reviewed. Nothing touches vip before M9, and M9 starts
-  only with the owner's go-ahead.
+- **Next: M7**, then M8. Nothing touches vip before M9, and M9 starts only with the owner's
+  go-ahead.
 
 ## Why
 

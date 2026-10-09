@@ -6,6 +6,7 @@
 #include <QHash>
 
 #include <algorithm>
+#include <limits>
 
 namespace rigpa {
 
@@ -72,10 +73,129 @@ void RigEditorModel::setAvailableWidth(qreal width)
 
 void RigEditorModel::relayout()
 {
-    if (m_session && m_session->hasDocument())
-        layout(m_session->document(), m_session->missingNodes());
-    else
+    if (!m_session || !m_session->hasDocument()) {
+        if (dragging())
+            endDrag();
         layout({}, {});
+        return;
+    }
+    if (dragging() && edits::locate(m_session->document(), m_lifted).chain < 0)
+        endDrag(); // the element went (another client changed the rig)
+    layout(dragging() ? preview() : m_session->document(), m_session->missingNodes());
+}
+
+QString RigEditorModel::keyOf(const Item &item)
+{
+    return item.kind + u':' + QString::number(item.chain) + u':' + item.element;
+}
+
+RigDocument RigEditorModel::preview() const
+{
+    RigDocument doc = m_session->document();
+    if (!edits::move(doc, m_lifted, m_target))
+        return m_session->document();
+    return doc;
+}
+
+bool RigEditorModel::lift(const QString &element)
+{
+    if (!m_session || !m_session->hasDocument() || dragging())
+        return false;
+    const edits::Place at = edits::locate(m_session->document(), element);
+    if (at.chain < 0)
+        return false;
+    m_lifted = element;
+    m_origin = m_target = at;
+    if (const Item *item = itemFor(element))
+        m_dragPoint = item->rect.center();
+    emit draggingChanged();
+    relayout();
+    return true;
+}
+
+void RigEditorModel::dragTo(const QPointF &point)
+{
+    if (!dragging())
+        return;
+    m_dragPoint = point;
+    emit dragPointChanged();
+    // The deepest container under the pointer; outside them all, the chain nearest it.
+    const Container *best = nullptr;
+    for (const Container &c : m_containers)
+        if (c.rect.contains(point) && (!best || c.path.size() > best->path.size()))
+            best = &c;
+    if (!best) {
+        qreal nearest = std::numeric_limits<qreal>::max();
+        for (const Container &c : m_containers) {
+            if (!c.path.isEmpty())
+                continue;
+            const qreal d = point.y() < c.rect.top() ? c.rect.top() - point.y()
+                          : point.y() > c.rect.bottom() ? point.y() - c.rect.bottom() : 0;
+            if (d < nearest) {
+                nearest = d;
+                best = &c;
+            }
+        }
+    }
+    if (!best)
+        return;
+    const edits::Place place{best->chain, best->path, flowhit::insertionIndex(best->marks, best->count, point)};
+    if (place == m_target)
+        return;
+    RigDocument check = m_session->document();
+    if (!edits::move(check, m_lifted, place))
+        return;
+    m_target = place;
+    relayout();
+}
+
+void RigEditorModel::endDrag()
+{
+    m_lifted.clear();
+    emit draggingChanged();
+}
+
+void RigEditorModel::drop()
+{
+    if (!dragging())
+        return;
+    const RigDocument moved = preview();
+    const bool changed = m_target != m_origin;
+    endDrag();
+    if (changed)
+        m_session->applyDocument(moved); // shows the moved document at once
+    else
+        relayout();
+}
+
+void RigEditorModel::dropOnTrash()
+{
+    if (!dragging())
+        return;
+    RigDocument doc = m_session->document();
+    const bool removed = edits::remove(doc, m_lifted);
+    endDrag();
+    if (removed)
+        m_session->applyDocument(doc);
+    else
+        relayout();
+}
+
+void RigEditorModel::cancelDrag()
+{
+    if (!dragging())
+        return;
+    endDrag();
+    relayout();
+}
+
+QVariantMap RigEditorModel::describeElement(const QString &element) const
+{
+    for (const Item &i : m_items)
+        if (i.select >= 0 && i.element == element)
+            return {{"kind", i.kind}, {"title", i.title}, {"subtitle", i.subtitle}, {"tint", i.color},
+                    {"width", i.rect.width()}, {"height", i.rect.height()}, {"bypassed", i.bypassed}};
+    return {};
 }
 
 QSizeF RigEditorModel::laneSize(const QList<RigElement> &lane) const
@@ -107,7 +227,8 @@ QSizeF RigEditorModel::elementSize(const RigElement &e) const
 
 void RigEditorModel::wire(const QRectF &r)
 {
-    m_wires.append(r);
+    if (m_liftDepth == 0)
+        m_wires.append(r);
 }
 
 void RigEditorModel::describe(const RigElement &e, Item &item) const
@@ -161,6 +282,7 @@ void RigEditorModel::placeBlock(const RigElement &e, const QRectF &tile, int cha
     item.rect = tile;
     item.chain = chain;
     item.select = m_selectable++;
+    item.lift = m_liftDepth > 0 ? 2 : e.element == m_lifted ? 1 : 0;
     m_items.append(item);
 }
 
@@ -172,7 +294,11 @@ void RigEditorModel::placeSection(const RigElement &e, QPointF origin, int chain
     frame.rect = QRectF(origin, size);
     frame.chain = chain;
     frame.select = m_selectable++;
+    frame.lift = m_liftDepth > 0 ? 2 : e.element == m_lifted ? 1 : 0;
     m_items.append(frame);
+    const bool lifted = e.element == m_lifted || m_liftDepth > 0;
+    if (lifted)
+        ++m_liftDepth; // its insides are drawn by the ghost, and take no drops
 
     const qreal t = m_style.wire, half = t / 2;
     const qreal splitX = origin.x(), mixX = origin.x() + size.width() - m_style.bar;
@@ -185,29 +311,49 @@ void RigEditorModel::placeSection(const RigElement &e, QPointF origin, int chain
             firstMid = mid;
         lastMid = mid;
         qreal x = splitX + m_style.bar;
+        Container box;
+        if (!lifted) {
+            box.chain = chain;
+            box.path = m_path;
+            box.path.append(e.element + u'/' + QString::number(&lane - e.lanes.data()));
+            box.rect = QRectF(splitX + m_style.bar, y - m_style.laneGap / 2, mixX - splitX - m_style.bar,
+                              ls.height() + m_style.laneGap);
+        }
+        m_path.append(e.element + u'/' + QString::number(&lane - e.lanes.data()));
         for (const RigElement &el : lane) {
             const QSizeF s = elementSize(el);
             wire(QRectF(x, mid - half, m_style.connector, t));
             x += m_style.connector;
+            const QRectF r(x, mid - s.height() / 2, s.width(), s.height());
             if (el.kind == RigElement::Block)
-                placeBlock(el, QRectF(x, mid - s.height() / 2, s.width(), s.height()), chain);
+                placeBlock(el, r, chain);
             else
-                placeSection(el, QPointF(x, mid - s.height() / 2), chain);
+                placeSection(el, r.topLeft(), chain);
+            if (!lifted && el.element != m_lifted)
+                box.marks.append(flowhit::Mark::element(box.count++, r));
             x += s.width();
         }
+        m_path.removeLast();
         wire(QRectF(x, mid - half, mixX - x, t)); // on to the mix (straight across when empty)
+        if (!lifted)
+            m_containers.append(box);
         y += ls.height() + m_style.laneGap;
     }
     // The split and mix bars, joining the lanes' wires.
     wire(QRectF(splitX, firstMid - half, m_style.bar, lastMid - firstMid + t));
     wire(QRectF(mixX, firstMid - half, m_style.bar, lastMid - firstMid + t));
+    if (lifted)
+        --m_liftDepth;
 }
 
 void RigEditorModel::layout(const RigDocument &doc, const QSet<QString> &missing)
 {
-    beginResetModel();
+    QList<Item> before = std::move(m_items);
     m_items.clear();
     m_wires.clear();
+    m_containers.clear();
+    m_path.clear();
+    m_liftDepth = 0;
     m_selectable = 0;
     m_missing = missing;
     const Style &st = m_style;
@@ -244,10 +390,15 @@ void RigEditorModel::layout(const RigDocument &doc, const QSet<QString> &missing
             item.rect = r;
             item.chain = c;
             item.title = input ? tr("In %1").arg(chain.inputChannel + 1) : tr("Out %1").arg(chain.outputChannel + 1);
+            item.element = input ? QStringLiteral("in") : QStringLiteral("out");
             item.color = QStringLiteral("#5a5a5a");
             m_items.append(item);
         };
+        Container box;
+        box.chain = c;
+        box.rect = QRectF(at, flow.size).adjusted(0, -st.rowSpacing / 2, 0, st.rowSpacing / 2);
         io(flow.itemFrames.first().translated(at), true);
+        box.marks.append(flowhit::Mark::endpoint(0, m_items.last().rect));
         for (int i = 0; i < chain.series.size(); ++i) {
             const QRectF f = flow.itemFrames.at(i + 1).translated(at);
             const RigElement &e = chain.series.at(i);
@@ -257,10 +408,15 @@ void RigEditorModel::layout(const RigDocument &doc, const QSet<QString> &missing
                 placeBlock(e, body, c);
             else
                 placeSection(e, body.topLeft(), c);
+            if (e.element != m_lifted)
+                box.marks.append(flowhit::Mark::element(box.count++, body));
         }
         const QRectF out = flow.itemFrames.last().translated(at);
         wire(QRectF(out.left(), out.center().y() - st.wire / 2, st.connector, st.wire));
         io(QRectF(out.left() + st.connector, out.top(), st.ioWidth, out.height()), false);
+        box.marks.append(flowhit::Mark::endpoint(box.count, m_items.last().rect));
+        if (chain.editable)
+            m_containers.append(box);
         for (const auto &pieces : flow.wires)
             for (const QRectF &p : pieces)
                 wire(p.translated(at));
@@ -270,7 +426,31 @@ void RigEditorModel::layout(const RigDocument &doc, const QSet<QString> &missing
     }
     m_contentWidth = widest + 2 * st.padding;
     m_contentHeight = doc.chains.isEmpty() ? 0 : y - st.chainGap + st.padding;
-    endResetModel();
+
+    // The same tiles in new places (a drag, a re-wrap) move the delegates that are there, so they
+    // can animate; anything else rebuilds them.
+    QStringList oldKeys, newKeys;
+    for (const Item &i : before)
+        oldKeys << keyOf(i);
+    for (const Item &i : m_items)
+        newKeys << keyOf(i);
+    QStringList a = oldKeys, b = newKeys;
+    std::sort(a.begin(), a.end());
+    std::sort(b.begin(), b.end());
+    if (!before.isEmpty() && a == b && a.removeDuplicates() == 0) {
+        QHash<QString, Item> byKey;
+        for (const Item &i : m_items)
+            byKey.insert(keyOf(i), i);
+        for (int r = 0; r < oldKeys.size(); ++r)
+            m_items[r] = byKey.value(oldKeys.at(r));
+        emit dataChanged(index(0), index(int(m_items.size()) - 1));
+    } else {
+        QList<Item> fresh = std::move(m_items);
+        m_items = std::move(before);
+        beginResetModel();
+        m_items = std::move(fresh);
+        endResetModel();
+    }
     emit laidOut();
 }
 
@@ -330,6 +510,7 @@ QVariant RigEditorModel::data(const QModelIndex &index, int role) const
     case SelectRole: return i.select;
     case ElementRole: return i.element;
     case ChainRole: return i.chain;
+    case LiftRole: return i.lift;
     }
     return {};
 }
@@ -338,7 +519,8 @@ QHash<int, QByteArray> RigEditorModel::roleNames() const
 {
     return {{KindRole, "kind"}, {XRole, "itemX"}, {YRole, "itemY"}, {WRole, "itemW"}, {HRole, "itemH"},
             {TitleRole, "title"}, {SubtitleRole, "subtitle"}, {ColorRole, "tint"}, {BypassedRole, "bypassed"},
-            {MissingRole, "missing"}, {SelectRole, "select"}, {ElementRole, "element"}, {ChainRole, "chain"}};
+            {MissingRole, "missing"}, {SelectRole, "select"}, {ElementRole, "element"}, {ChainRole, "chain"},
+            {LiftRole, "lift"}};
 }
 
 } // namespace rigpa

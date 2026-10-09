@@ -125,6 +125,7 @@ private:
 RigChain parseChain(const QJsonObject &c)
 {
     RigChain chain;
+    chain.json = c;
     chain.id = c.value(QStringLiteral("id")).toString(QStringLiteral("main"));
     chain.name = c.value(QStringLiteral("name")).toString();
     chain.inputChannel = c.value(QStringLiteral("input_channel")).toInt();

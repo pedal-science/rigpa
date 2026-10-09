@@ -1,5 +1,7 @@
 #include "RigSession.h"
 
+#include "RigEdits.h"
+
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -112,7 +114,9 @@ void RigSession::fetchDocument()
     m_fetching = true;
     m_engine->client()->request(QStringLiteral("rig.get"), {}, [this](const EngineReply &reply) {
         m_fetching = false;
-        if (reply.ok) {
+        // While an apply is on its way, a read may still show the document before it: keep the
+        // edited one, and read again once the engine has answered.
+        if (reply.ok && m_applying == 0) {
             m_document = RigDocument::parse(reply.body.value(QStringLiteral("document")).toObject());
             m_missing.clear();
             for (const auto &m : reply.body.value(QStringLiteral("missing_assets")).toArray())
@@ -172,6 +176,23 @@ bool RigSession::macroElementIsUnique(const QString &chainId, const QString &ele
         return macros == 1;
     }
     return false;
+}
+
+void RigSession::applyDocument(const RigDocument &edited)
+{
+    const QJsonObject json = edits::toJson(edited);
+    m_document = RigDocument::parse(json);
+    emit documentChanged();
+    ++m_applying;
+    m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), json}},
+                                [this](const EngineReply &reply) {
+        --m_applying;
+        if (!reply.ok)
+            say(tr("The engine refused the change: %1").arg(reply.message.isEmpty() ? reply.code : reply.message));
+        else
+            say({});
+        fetchDocument();
+    });
 }
 
 bool RigSession::isBypassed(const QString &element) const
