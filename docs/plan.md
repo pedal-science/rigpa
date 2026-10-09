@@ -4,7 +4,14 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- M0 in progress: repo, workspace registration, docs, toolchain, an empty window.
+- **M0 done (2026-10-09), awaiting the owner's review.** `rikkus/rigpa` (private) is registered in
+  the workspace (`scripts/workspace check` passes); pedal.project `876715e` records D14 and the
+  sixth repository. `mise run qt` installs Qt 6.10.2 into `.qt/`; `mise run test` is green; the
+  app is an empty window with `--screenshot <file>`.
+- On a laptop screen the 1920×480 window is clamped to the screen's width: M1's `display.scale`
+  fixes that.
+- **Next: M1** (shell, navigation, settings) once M0 is reviewed. Nothing touches vip before M9,
+  and M9 starts only with the owner's go-ahead.
 
 ## Why
 
