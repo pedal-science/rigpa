@@ -13,6 +13,7 @@ qt_standard_project_setup(REQUIRES 6.10)
 qt_add_library(rigpa_core STATIC)
 qt_add_qml_module(rigpa_core
     URI Rigpa.Core
+    OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Rigpa/Core
     SOURCES
         src/app/App.cpp src/app/App.h
         src/app/Config.cpp src/app/Config.h
