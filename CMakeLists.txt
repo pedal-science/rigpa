@@ -21,10 +21,13 @@ qt_add_qml_module(rigpa_core
         src/app/FocusRing.cpp src/app/FocusRing.h
         src/app/Navigator.cpp src/app/Navigator.h
         src/app/Settings.cpp src/app/Settings.h
+        src/engine/EngineClient.cpp src/engine/EngineClient.h
+        src/engine/EngineSession.cpp src/engine/EngineSession.h
+        src/engine/Framing.cpp src/engine/Framing.h
 )
 target_include_directories(rigpa_core PUBLIC src)
 # The generated QML type registrations include each header by its bare name.
-target_include_directories(rigpa_core PRIVATE src/app)
+target_include_directories(rigpa_core PRIVATE src/app src/engine)
 target_link_libraries(rigpa_core PUBLIC Qt6::Core Qt6::Gui Qt6::Network Qt6::Qml)
 
 qt_add_executable(rigpa MACOSX_BUNDLE src/main.cpp)

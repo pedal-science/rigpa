@@ -1,0 +1,133 @@
+{
+  "name": "Dual",
+  "chains": [
+    {
+      "id": "D90BC979-1E4F-4327-8C9D-5AEFE826F677",
+      "name": "Guitar",
+      "input_channel": 0,
+      "output_channel": 0,
+      "nodes": [
+        {
+          "id": "in",
+          "type": "nc.input"
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000001-nam",
+          "type": "nc.nam",
+          "element": "7A1C2E4F-0001-4000-8000-000000000001",
+          "model": "A2-Lite"
+        },
+        {
+          "id": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-split",
+          "type": "nc.split",
+          "element": "6CC4CEC7-098A-4F38-970A-49793C98B2A5",
+          "outputs": 2
+        },
+        {
+          "id": "FB649601-CC86-458C-AACE-11DB8AFF779C-cut",
+          "type": "fx.filter.cut",
+          "element": "FB649601-CC86-458C-AACE-11DB8AFF779C",
+          "high_cut": 8000,
+          "high_slope": "12"
+        },
+        {
+          "id": "BB0AE332-BD89-42BD-B406-708D577055AC-cut",
+          "type": "fx.filter.cut",
+          "element": "BB0AE332-BD89-42BD-B406-708D577055AC",
+          "low_cut": 80,
+          "low_slope": "12"
+        },
+        {
+          "id": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-mix",
+          "type": "nc.mix",
+          "element": "6CC4CEC7-098A-4F38-970A-49793C98B2A5",
+          "inputs": 2
+        },
+        {
+          "id": "out",
+          "type": "nc.output"
+        }
+      ],
+      "connections": [
+        {
+          "from": "in",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000001-nam",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000001-nam",
+          "from_port": 0,
+          "to": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-split",
+          "to_port": 0
+        },
+        {
+          "from": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-split",
+          "from_port": 0,
+          "to": "FB649601-CC86-458C-AACE-11DB8AFF779C-cut",
+          "to_port": 0
+        },
+        {
+          "from": "FB649601-CC86-458C-AACE-11DB8AFF779C-cut",
+          "from_port": 0,
+          "to": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-mix",
+          "to_port": 0
+        },
+        {
+          "from": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-split",
+          "from_port": 1,
+          "to": "BB0AE332-BD89-42BD-B406-708D577055AC-cut",
+          "to_port": 0
+        },
+        {
+          "from": "BB0AE332-BD89-42BD-B406-708D577055AC-cut",
+          "from_port": 0,
+          "to": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-mix",
+          "to_port": 1
+        },
+        {
+          "from": "6CC4CEC7-098A-4F38-970A-49793C98B2A5-mix",
+          "from_port": 0,
+          "to": "out",
+          "to_port": 0
+        }
+      ]
+    },
+    {
+      "id": "C36DCC40-F872-4C65-9FA5-ED3CD4D4C7A0",
+      "name": "Vocal",
+      "input_channel": 1,
+      "output_channel": 1,
+      "nodes": [
+        {
+          "id": "in",
+          "type": "nc.input"
+        },
+        {
+          "id": "F0F132D1-1A2F-442F-98FD-1C93AA53C023-gain",
+          "type": "nc.gain",
+          "element": "F0F132D1-1A2F-442F-98FD-1C93AA53C023",
+          "gain_db": 0
+        },
+        {
+          "id": "out",
+          "type": "nc.output"
+        }
+      ],
+      "connections": [
+        {
+          "from": "in",
+          "from_port": 0,
+          "to": "F0F132D1-1A2F-442F-98FD-1C93AA53C023-gain",
+          "to_port": 0
+        },
+        {
+          "from": "F0F132D1-1A2F-442F-98FD-1C93AA53C023-gain",
+          "from_port": 0,
+          "to": "out",
+          "to_port": 0
+        }
+      ]
+    }
+  ]
+}

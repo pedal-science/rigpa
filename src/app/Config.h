@@ -11,6 +11,8 @@ namespace rigpa {
 // add the engine and pedald sections; this one knows the display and where settings live.
 //
 //   {
+//     "engine_config": "/etc/namchain/namchaind.json",   // its tcp_port and tcp_token_file (vip)
+//     "engine": { "host": "127.0.0.1", "port": 47810, "token_file": "..." },  // overrides (Mac)
 //     "settings_file": "/var/lib/rigpa/settings.ini",
 //     "display": { "rotation": 90, "scale": 1.0 },   // scale 0 (or absent): fit the screen
 //     "dev": { "rotary_invert": false }
@@ -40,6 +42,13 @@ public:
     int rotation() const { return m_rotation; }
     double scale() const { return m_scale; }
     bool rotaryInverted() const { return m_rotaryInverted; }
+
+    // namchaind's address, and its token: from $CREDENTIALS_DIRECTORY/token when systemd gave one
+    // (LoadCredential, as pedald does), else the token file. An empty token comes with `problem`.
+    QString engineHost() const { return m_engineHost; }
+    quint16 enginePort() const { return m_enginePort; }
+    QString engineTokenFile() const { return m_engineTokenFile; }
+    QString engineToken(QString *problem) const;
     QJsonObject root() const { return m_root; }
 
 private:
@@ -49,6 +58,9 @@ private:
     int m_rotation = 0;
     double m_scale = 0;
     bool m_rotaryInverted = false;
+    QString m_engineHost = QStringLiteral("127.0.0.1");
+    quint16 m_enginePort = 47810;
+    QString m_engineTokenFile;
 };
 
 } // namespace rigpa

@@ -1,0 +1,69 @@
+{
+  "name": "Clean",
+  "chains": [
+    {
+      "id": "C9E7D1B2-1000-4000-8000-000000000001",
+      "name": "Guitar",
+      "input_channel": 0,
+      "output_channel": 0,
+      "nodes": [
+        {
+          "id": "in",
+          "type": "nc.input"
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000001-nam",
+          "type": "nc.nam",
+          "element": "7A1C2E4F-0001-4000-8000-000000000001",
+          "model": "A2-Lite"
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000001-tone",
+          "type": "fx.amp.tonestack",
+          "element": "7A1C2E4F-0001-4000-8000-000000000001",
+          "bass": 1.2,
+          "mid": 0,
+          "treble": 2.4
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000002-cab",
+          "type": "fx.cab.ir",
+          "element": "7A1C2E4F-0001-4000-8000-000000000002",
+          "ir": "CabIR",
+          "low_cut": 80,
+          "high_cut": 9000
+        },
+        {
+          "id": "out",
+          "type": "nc.output"
+        }
+      ],
+      "connections": [
+        {
+          "from": "in",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000001-nam",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000001-nam",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000001-tone",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000001-tone",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000002-cab",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000002-cab",
+          "from_port": 0,
+          "to": "out",
+          "to_port": 0
+        }
+      ]
+    }
+  ]
+}

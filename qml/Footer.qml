@@ -7,6 +7,20 @@ Rectangle {
 
     Rectangle { width: parent.width; height: 1; color: Theme.line }
 
+    // Connection problems, while there are any.
+    Text {
+        anchors.right: parent.right
+        anchors.rightMargin: 24
+        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width / 2
+        horizontalAlignment: Text.AlignRight
+        elide: Text.ElideRight
+        visible: App.engine.connection !== EngineSession.Connected
+        text: qsTr("Engine: ") + App.engine.connectionText
+        color: App.engine.connection === EngineSession.Connecting ? Theme.dim : Theme.warn
+        font.pixelSize: Theme.fontNormal
+    }
+
     Row {
         anchors.left: parent.left
         anchors.leftMargin: 24

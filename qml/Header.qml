@@ -24,9 +24,13 @@ Rectangle {
         anchors.left: title.right
         anchors.leftMargin: 20
         anchors.baseline: title.baseline
-        color: Theme.dim
-        font.pixelSize: Theme.fontNormal
-        text: qsTr("no engine yet")
+        color: App.engine.hasRig ? Theme.text : Theme.dim
+        font.pixelSize: Theme.fontLarge
+        elide: Text.ElideRight
+        width: Math.min(implicitWidth, 900)
+        text: App.engine.connection !== EngineSession.Connected ? "\u2014"
+            : App.engine.hasRig ? (App.engine.rigName !== "" ? App.engine.rigName : qsTr("(unnamed rig)"))
+            : qsTr("no rig running")
     }
 
     Row {

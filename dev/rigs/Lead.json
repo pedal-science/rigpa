@@ -1,0 +1,79 @@
+{
+  "name": "Lead",
+  "chains": [
+    {
+      "id": "C9E7D1B2-2000-4000-8000-000000000002",
+      "name": "Guitar",
+      "input_channel": 0,
+      "output_channel": 0,
+      "nodes": [
+        {
+          "id": "in",
+          "type": "nc.input"
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000003-gain",
+          "type": "nc.gain",
+          "element": "7A1C2E4F-0001-4000-8000-000000000003",
+          "gain_db": 3
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000004-nam",
+          "type": "nc.nam",
+          "element": "7A1C2E4F-0001-4000-8000-000000000004",
+          "model": "A2-Full"
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000005-delay",
+          "type": "fx.delay.feedback",
+          "element": "7A1C2E4F-0001-4000-8000-000000000005",
+          "time": 380,
+          "feedback": 0.35,
+          "mix": 0.25
+        },
+        {
+          "id": "7A1C2E4F-0001-4000-8000-000000000006-cab",
+          "type": "fx.cab.ir",
+          "element": "7A1C2E4F-0001-4000-8000-000000000006",
+          "ir": "CabIR"
+        },
+        {
+          "id": "out",
+          "type": "nc.output"
+        }
+      ],
+      "connections": [
+        {
+          "from": "in",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000003-gain",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000003-gain",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000004-nam",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000004-nam",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000005-delay",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000005-delay",
+          "from_port": 0,
+          "to": "7A1C2E4F-0001-4000-8000-000000000006-cab",
+          "to_port": 0
+        },
+        {
+          "from": "7A1C2E4F-0001-4000-8000-000000000006-cab",
+          "from_port": 0,
+          "to": "out",
+          "to_port": 0
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# dev/dev-pedal — the pedal's back end, locally, for rigpa on the Mac (docs/plan.md, "Dev loop").
+#
+#   dev/dev-pedal            run namchaind and pedald under .dev/ until Ctrl-C
+#
+# namchaind is ../namchain/build-mac/namchaind (build it there first), on the null backend: no
+# audio device, a paced clock. pedald is ../pedal.project's, run from its source tree. Both read one
+# .dev/namchaind.json, as on the pedal, and rigpa reads it too through .dev/rigpa.json:
+#
+#   mise run run -- --config .dev/rigpa.json
+#
+# The library is namchain's generated test models (A2-Lite, A2-Full, CabIR) unless
+# RIGPA_DEV_LIBRARY names a folder with NAM/ and IRs/ in it (the layout of ~/Documents/Audio, which
+# is what sync-library sends to the pedal, so ids match). The fixture rigs in dev/rigs/ are copied
+# into .dev/library/rigs/ once; after that the copies are the dev pedal's own.
+#
+# The null backend has no input, so the meters stay flat. RIGPA_DEV_INPUT=<a 48 kHz WAV> switches
+# to the coreaudio backend, which loops that file as the input and plays the rig through the
+# Mac's default output: the meters move, and you hear it.
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+DEV=$ROOT/.dev
+NAMCHAIN=${NAMCHAIN:-$ROOT/../namchain}
+NAMCHAIND=$NAMCHAIN/build-mac/namchaind
+PEDAL_ROOTFS=${PEDAL_ROOTFS:-$ROOT/../pedal.project/devices/common/rootfs}
+PEDALD_LIB=$PEDAL_ROOTFS/usr/local/lib
+ENGINE_PORT=${RIGPA_DEV_ENGINE_PORT:-47810}
+PEDALD_PORT=${RIGPA_DEV_PEDALD_PORT:-47820}
+
+die() { printf 'dev-pedal: %s\n' "$*" >&2; exit 1; }
+[[ -x $NAMCHAIND ]] || die "no $NAMCHAIND: build it with 'cmake --build build-mac --target namchaind' in $NAMCHAIN"
+[[ -d $PEDALD_LIB/pedald ]] || die "no pedald in $PEDALD_LIB"
+
+mkdir -p "$DEV/logs" "$DEV/state" "$DEV/library/rigs"
+
+if [[ -n ${RIGPA_DEV_LIBRARY:-} ]]; then
+  MODELS=$RIGPA_DEV_LIBRARY/NAM
+  IRS=$RIGPA_DEV_LIBRARY/IRs
+else
+  MODELS=$DEV/library/models
+  IRS=$DEV/library/irs
+  GENERATED=$NAMCHAIN/build-mac/generated
+  [[ -f $GENERATED/A2-Lite.nam ]] || die "no test models in $GENERATED: run namchain's tests once to generate them"
+  mkdir -p "$MODELS" "$IRS"
+  cp -n "$GENERATED/A2-Lite.nam" "$GENERATED/A2-Full.nam" "$MODELS/" 2>/dev/null || true
+  cp -n "$GENERATED/CabIR.nam" "$IRS/" 2>/dev/null || true
+fi
+
+for rig in "$ROOT"/dev/rigs/*.json; do
+  [[ -e $DEV/library/rigs/$(basename "$rig") ]] || cp "$rig" "$DEV/library/rigs/"
+done
+# As on the pedal, the engine starts on last.json, the resume snapshot pedald keeps.
+[[ -e $DEV/library/rigs/last.json ]] || cp "$ROOT/dev/rigs/Clean.json" "$DEV/library/rigs/last.json"
+
+if [[ ! -s $DEV/token ]]; then
+  (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "$DEV/token")
+fi
+
+if [[ -n ${RIGPA_DEV_INPUT:-} ]]; then
+  [[ -f $RIGPA_DEV_INPUT ]] || die "no such WAV: $RIGPA_DEV_INPUT"
+  # coreaudio's period is a ceiling: the device's own period is measured and used.
+  BACKEND='"backend": "coreaudio", "capture_path": "'"$RIGPA_DEV_INPUT"'", "period_size": 1024,'
+else
+  BACKEND='"backend": "null", "period_size": 64,'
+fi
+
+cat > "$DEV/namchaind.json" <<JSON
+{
+  $BACKEND
+  "sample_rate": 48000,
+  "capture_channels": 2,
+  "playback_channels": 2,
+  "rig": "last.json",
+  "rigs_root": "$DEV/library/rigs",
+  "models_root": "$MODELS",
+  "irs_root": "$IRS",
+  "socket": "namchaind.sock",
+  "lock_memory": false,
+  "rt_priority": 0,
+  "tcp_listen": true,
+  "tcp_address": "127.0.0.1",
+  "tcp_port": $ENGINE_PORT,
+  "tcp_token_file": "$DEV/token"
+}
+JSON
+cat > "$DEV/pedald.json" <<JSON
+{
+  "uart_device": "$DEV/no-pico",
+  "http_host": "127.0.0.1",
+  "http_port": $PEDALD_PORT,
+  "state_root": "$DEV/state"
+}
+JSON
+[[ -e $DEV/rigpa.json ]] || cat > "$DEV/rigpa.json" <<JSON
+{
+  "engine_config": "$DEV/namchaind.json",
+  "settings_file": "$DEV/settings.ini"
+}
+JSON
+
+pids=()
+stop() { for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done; wait 2>/dev/null || true; }
+trap stop EXIT INT TERM
+
+# The socket path is relative: macOS caps Unix socket paths at 104 bytes.
+(cd "$DEV" && exec "$NAMCHAIND" --config "$DEV/namchaind.json") > "$DEV/logs/namchaind.log" 2>&1 &
+pids+=($!)
+PEDALD_LIB=$PEDALD_LIB python3 "$PEDAL_ROOTFS/usr/local/sbin/pedald" run --config "$DEV/pedald.json" \
+  --engine-config "$DEV/namchaind.json" > "$DEV/logs/pedald.log" 2>&1 &
+pids+=($!)
+
+printf 'namchaind on 127.0.0.1:%s, pedald on 127.0.0.1:%s; logs in %s/logs. Ctrl-C stops both.\n' \
+  "$ENGINE_PORT" "$PEDALD_PORT" "$DEV"
+printf 'rigpa: mise run run -- --config %s/rigpa.json\n' "$DEV"
+wait -n "${pids[@]}" || true
+die "a back-end process stopped; see $DEV/logs/"

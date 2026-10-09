@@ -3,6 +3,7 @@
 #include "app/DevInput.h"
 #include "app/Navigator.h"
 #include "app/Settings.h"
+#include "engine/EngineSession.h"
 
 #include <QCommandLineParser>
 #include <QDir>
@@ -56,7 +57,15 @@ int main(int argc, char *argv[])
     QDir().mkpath(QFileInfo(settingsPath).absolutePath());
     rigpa::Settings settings(settingsPath);
     rigpa::Navigator nav;
-    rigpa::App appObject(&config, &settings, &nav);
+    rigpa::EngineSession engineSession;
+    rigpa::App appObject(&config, &settings, &nav, &engineSession);
+
+    engineSession.setMetersEnabled(settings.liveMeters());
+    QObject::connect(&settings, &rigpa::Settings::liveMetersChanged, &engineSession,
+                     [&] { engineSession.setMetersEnabled(settings.liveMeters()); });
+    QString tokenProblem;
+    const QString token = config.engineToken(&tokenProblem);
+    engineSession.start(config.engineHost(), config.enginePort(), token, tokenProblem);
 
     rigpa::DevInput devInput;
     devInput.setInverted(config.rotaryInverted());
@@ -93,7 +102,7 @@ int main(int argc, char *argv[])
     if (parser.isSet(screenshotOption)) {
         const QString path = parser.value(screenshotOption);
         // Long enough for the first frames and any opening animation to finish.
-        QTimer::singleShot(1500, &app, [&engine, path] {
+        QTimer::singleShot(2500, &app, [&engine, path] {
             const auto roots = engine.rootObjects();
             auto *window = roots.isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(roots.first());
             const bool saved = window && window->grabWindow().save(path);

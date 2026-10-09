@@ -61,9 +61,67 @@ bool Config::loadJson(const QJsonObject &root, QString *error)
         *error = QStringLiteral("display.scale must be between 0 (fit) and 4");
         return false;
     }
+    // The engine: its own config file first (one home per fact, as pedald reads it), then any
+    // explicit values. On the pedal the engine's file is the default.
+    QString engineConfig = root.value(QStringLiteral("engine_config")).toString();
+#ifdef Q_OS_LINUX
+    if (!root.contains(QStringLiteral("engine_config")) && !root.contains(QStringLiteral("engine")))
+        engineConfig = QStringLiteral("/etc/namchain/namchaind.json");
+#endif
+    if (!engineConfig.isEmpty()) {
+        QFile file(engineConfig);
+        if (!file.open(QIODevice::ReadOnly)) {
+            *error = QStringLiteral("cannot read engine_config %1: %2").arg(engineConfig, file.errorString());
+            return false;
+        }
+        const QJsonObject engine = QJsonDocument::fromJson(file.readAll()).object();
+        if (engine.contains(QStringLiteral("tcp_port")))
+            m_enginePort = quint16(engine.value(QStringLiteral("tcp_port")).toInt());
+        m_engineTokenFile = engine.value(QStringLiteral("tcp_token_file")).toString();
+        // The daemon may listen on 0.0.0.0; rigpa is on the same host either way.
+        m_engineHost = QStringLiteral("127.0.0.1");
+    }
+    const QJsonObject engine = root.value(QStringLiteral("engine")).toObject();
+    if (engine.contains(QStringLiteral("host")))
+        m_engineHost = engine.value(QStringLiteral("host")).toString();
+    if (engine.contains(QStringLiteral("port"))) {
+        const int port = engine.value(QStringLiteral("port")).toInt();
+        if (port <= 0 || port > 65535) {
+            *error = QStringLiteral("engine.port must be 1-65535");
+            return false;
+        }
+        m_enginePort = quint16(port);
+    }
+    if (engine.contains(QStringLiteral("token_file")))
+        m_engineTokenFile = engine.value(QStringLiteral("token_file")).toString();
+
     m_rotaryInverted = root.value(QStringLiteral("dev")).toObject()
                            .value(QStringLiteral("rotary_invert")).toBool(false);
     return true;
+}
+
+QString Config::engineToken(QString *problem) const
+{
+    QString path = m_engineTokenFile;
+    const QString credentials = qEnvironmentVariable("CREDENTIALS_DIRECTORY");
+    if (!credentials.isEmpty() && QFile::exists(QDir(credentials).filePath(QStringLiteral("token"))))
+        path = QDir(credentials).filePath(QStringLiteral("token"));
+    if (path.isEmpty()) {
+        *problem = QStringLiteral("no engine token file configured");
+        return {};
+    }
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        *problem = QStringLiteral("cannot read the engine token %1: %2").arg(path, file.errorString());
+        return {};
+    }
+    // The first line, trimmed: the daemon's own rule (namchain src/daemon/config.cpp).
+    const QString token = QString::fromUtf8(file.readLine()).trimmed();
+    if (token.size() < 16) {
+        *problem = QStringLiteral("the engine token in %1 is shorter than 16 characters").arg(path);
+        return {};
+    }
+    return token;
 }
 
 QString Config::settingsFile() const
