@@ -1,0 +1,48 @@
+import QtQuick
+import Rigpa.Core
+
+// What apply and back do here and now, and (from M2) the latest message.
+Rectangle {
+    color: Theme.background
+
+    Rectangle { width: parent.width; height: 1; color: Theme.line }
+
+    Row {
+        anchors.left: parent.left
+        anchors.leftMargin: 24
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: 32
+
+        Repeater {
+            model: [
+                { key: qsTr("apply"), what: App.nav.applyHint },
+                { key: qsTr("back"), what: App.nav.backHint }
+            ]
+            delegate: Row {
+                required property var modelData
+                spacing: 10
+                opacity: modelData.what === "" ? 0.35 : 1
+                Rectangle {
+                    width: keyText.implicitWidth + 16
+                    height: 26
+                    radius: 6
+                    color: Theme.raised
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        id: keyText
+                        anchors.centerIn: parent
+                        text: modelData.key
+                        color: Theme.dim
+                        font.pixelSize: Theme.fontSmall
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: modelData.what === "" ? "—" : modelData.what
+                    color: Theme.text
+                    font.pixelSize: Theme.fontNormal
+                }
+            }
+        }
+    }
+}

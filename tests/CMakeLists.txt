@@ -5,4 +5,7 @@ function(rigpa_test name)
     add_test(NAME ${name} COMMAND ${name})
 endfunction()
 
-rigpa_test(tst_buildinfo)
+rigpa_test(tst_navigator)
+rigpa_test(tst_devinput)
+rigpa_test(tst_settings)
+rigpa_test(tst_config)
