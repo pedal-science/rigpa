@@ -2,6 +2,7 @@
 
 #include "Config.h"
 #include "engine/EngineSession.h"
+#include "library/Library.h"
 #include "Navigator.h"
 #include "Settings.h"
 
@@ -23,10 +24,11 @@ class App : public QObject
     Q_PROPERTY(rigpa::Settings *settings READ settings CONSTANT)
     Q_PROPERTY(rigpa::Navigator *nav READ nav CONSTANT)
     Q_PROPERTY(rigpa::EngineSession *engine READ engine CONSTANT)
+    Q_PROPERTY(rigpa::Library *library READ library CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
-        QObject *parent = nullptr);
+        Library *library, QObject *parent = nullptr);
     ~App() override;
 
     static App *create(QQmlEngine *, QJSEngine *);
@@ -35,12 +37,14 @@ public:
     Settings *settings() const { return m_settings; }
     Navigator *nav() const { return m_nav; }
     EngineSession *engine() const { return m_engine; }
+    Library *library() const { return m_library; }
 
 private:
     Config *m_config;
     Settings *m_settings;
     Navigator *m_nav;
     EngineSession *m_engine;
+    Library *m_library;
 };
 
 } // namespace rigpa

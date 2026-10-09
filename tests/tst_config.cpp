@@ -35,6 +35,46 @@ private slots:
         QVERIFY(config.rotaryInverted());
     }
 
+    void readsTheEnginesOwnConfig()
+    {
+        QTemporaryDir dir;
+        QFile engine(dir.filePath("namchaind.json"));
+        QVERIFY(engine.open(QIODevice::WriteOnly));
+        engine.write(QJsonDocument(QJsonObject{{"tcp_port", 47999}, {"tcp_token_file", dir.filePath("token")},
+                                               {"models_root", "/lib/models"}, {"irs_root", "/lib/irs"}}).toJson());
+        engine.close();
+        QFile token(dir.filePath("token"));
+        QVERIFY(token.open(QIODevice::WriteOnly));
+        token.write("0123456789abcdef0123\n");
+        token.close();
+
+        Config config;
+        QString error;
+        QVERIFY2(config.loadJson(QJsonObject{{"engine_config", engine.fileName()},
+                                             {"library", QJsonObject{{"irs", "/elsewhere/irs/"}}}}, &error),
+                 qPrintable(error));
+        QCOMPARE(config.enginePort(), quint16(47999));
+        QCOMPARE(config.engineHost(), QStringLiteral("127.0.0.1"));
+        QCOMPARE(config.modelsRoot(), QStringLiteral("/lib/models"));
+        QCOMPARE(config.irsRoot(), QStringLiteral("/elsewhere/irs")); // the override wins
+        QString problem;
+        QCOMPARE(config.engineToken(&problem), QStringLiteral("0123456789abcdef0123"));
+    }
+
+    void aShortTokenIsAProblem()
+    {
+        QTemporaryDir dir;
+        QFile token(dir.filePath("token"));
+        QVERIFY(token.open(QIODevice::WriteOnly));
+        token.write("short\n");
+        token.close();
+        Config config;
+        QString error, problem;
+        QVERIFY(config.loadJson(QJsonObject{{"engine", QJsonObject{{"token_file", token.fileName()}}}}, &error));
+        QVERIFY(config.engineToken(&problem).isEmpty());
+        QVERIFY(problem.contains("16"));
+    }
+
     void refusesWhatItCannotUse()
     {
         Config config;

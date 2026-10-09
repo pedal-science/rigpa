@@ -12,6 +12,7 @@ rigpa_test(tst_config)
 rigpa_test(tst_framing)
 rigpa_test(tst_engineclient)
 rigpa_test(tst_enginesession)
+rigpa_test(tst_library)
 
 # Against the real daemon, when namchain is built beside this repo (skipped otherwise).
 set(RIGPA_NAMCHAIN_BUILD "${PROJECT_SOURCE_DIR}/../namchain/build-mac" CACHE PATH

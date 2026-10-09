@@ -78,6 +78,8 @@ bool Config::loadJson(const QJsonObject &root, QString *error)
         if (engine.contains(QStringLiteral("tcp_port")))
             m_enginePort = quint16(engine.value(QStringLiteral("tcp_port")).toInt());
         m_engineTokenFile = engine.value(QStringLiteral("tcp_token_file")).toString();
+        m_modelsRoot = engine.value(QStringLiteral("models_root")).toString();
+        m_irsRoot = engine.value(QStringLiteral("irs_root")).toString();
         // The daemon may listen on 0.0.0.0; rigpa is on the same host either way.
         m_engineHost = QStringLiteral("127.0.0.1");
     }
@@ -94,6 +96,12 @@ bool Config::loadJson(const QJsonObject &root, QString *error)
     }
     if (engine.contains(QStringLiteral("token_file")))
         m_engineTokenFile = engine.value(QStringLiteral("token_file")).toString();
+
+    const QJsonObject library = root.value(QStringLiteral("library")).toObject();
+    if (library.contains(QStringLiteral("models")))
+        m_modelsRoot = QDir::cleanPath(library.value(QStringLiteral("models")).toString());
+    if (library.contains(QStringLiteral("irs")))
+        m_irsRoot = QDir::cleanPath(library.value(QStringLiteral("irs")).toString());
 
     m_rotaryInverted = root.value(QStringLiteral("dev")).toObject()
                            .value(QStringLiteral("rotary_invert")).toBool(false);

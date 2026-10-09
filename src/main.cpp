@@ -4,6 +4,7 @@
 #include "app/Navigator.h"
 #include "app/Settings.h"
 #include "engine/EngineSession.h"
+#include "library/Library.h"
 
 #include <QCommandLineParser>
 #include <QDir>
@@ -58,7 +59,10 @@ int main(int argc, char *argv[])
     rigpa::Settings settings(settingsPath);
     rigpa::Navigator nav;
     rigpa::EngineSession engineSession;
-    rigpa::App appObject(&config, &settings, &nav, &engineSession);
+    rigpa::Library library;
+    library.setRoots(config.modelsRoot(), config.irsRoot());
+    library.rescan();
+    rigpa::App appObject(&config, &settings, &nav, &engineSession, &library);
 
     engineSession.setMetersEnabled(settings.liveMeters());
     QObject::connect(&settings, &rigpa::Settings::liveMetersChanged, &engineSession,
@@ -89,7 +93,7 @@ int main(int argc, char *argv[])
 
     if (parser.isSet(inputOption)) {
         const QString keys = parser.value(inputOption);
-        QTimer::singleShot(300, &app, [&nav, keys] {
+        QTimer::singleShot(1500, &app, [&nav, keys] {
             for (const QChar c : keys) {
                 if (c == u'>') nav.rotate(1);
                 else if (c == u'<') nav.rotate(-1);
@@ -102,7 +106,7 @@ int main(int argc, char *argv[])
     if (parser.isSet(screenshotOption)) {
         const QString path = parser.value(screenshotOption);
         // Long enough for the first frames and any opening animation to finish.
-        QTimer::singleShot(2500, &app, [&engine, path] {
+        QTimer::singleShot(3000, &app, [&engine, path] {
             const auto roots = engine.rootObjects();
             auto *window = roots.isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(roots.first());
             const bool saved = window && window->grabWindow().save(path);

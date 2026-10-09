@@ -13,6 +13,7 @@ namespace rigpa {
 //   {
 //     "engine_config": "/etc/namchain/namchaind.json",   // its tcp_port and tcp_token_file (vip)
 //     "engine": { "host": "127.0.0.1", "port": 47810, "token_file": "..." },  // overrides (Mac)
+//     "library": { "models": "...", "irs": "..." },   // overrides; else engine_config's roots
 //     "settings_file": "/var/lib/rigpa/settings.ini",
 //     "display": { "rotation": 90, "scale": 1.0 },   // scale 0 (or absent): fit the screen
 //     "dev": { "rotary_invert": false }
@@ -49,6 +50,10 @@ public:
     quint16 enginePort() const { return m_enginePort; }
     QString engineTokenFile() const { return m_engineTokenFile; }
     QString engineToken(QString *problem) const;
+
+    // The NAM and IR roots rigpa reads (read-only): namchaind's own, or the overrides.
+    QString modelsRoot() const { return m_modelsRoot; }
+    QString irsRoot() const { return m_irsRoot; }
     QJsonObject root() const { return m_root; }
 
 private:
@@ -61,6 +66,8 @@ private:
     QString m_engineHost = QStringLiteral("127.0.0.1");
     quint16 m_enginePort = 47810;
     QString m_engineTokenFile;
+    QString m_modelsRoot;
+    QString m_irsRoot;
 };
 
 } // namespace rigpa

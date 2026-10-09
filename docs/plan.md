@@ -4,24 +4,20 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **M2 done (2026-10-09), awaiting the owner's review.** `EngineClient` (framing, hello with the
-  token, string ids, 10 s reply timeout, retries 1/2/5/10/30 s, no retry on `unauthorized` or
-  `unsupported_protocol`) and `EngineSession` (status at 2 Hz, levels at 10 Hz while meters are
-  on; DSP load is the worst block since the last reading, from `render.load_histogram`, because
-  `worst_percent` is since start). The info panel, the header's rig name and the footer show it.
-  `rigpa.json` gains `engine_config` (reads namchaind.json's port and token file) and `engine`
-  overrides; the token comes from `$CREDENTIALS_DIRECTORY/token` first.
-- **The dev loop:** `mise run dev` runs namchaind (`../namchain/build-mac`, null backend) and
-  pedald (from `../pedal.project`'s tree) under `.dev/`, with the fixture rigs in `dev/rigs/`
-  (Clean, Lead, Dual) and namchain's generated test models. `RIGPA_DEV_INPUT=<wav>` makes the
-  meters move (coreaudio backend, audible). `RIGPA_DEV_LIBRARY=~/Documents/Audio` uses the real
-  library, but on this Mac its files are iCloud placeholders (`dataless`): reading one blocks
-  until it downloads, so it needs "Keep Downloaded" first.
-- Tests: 8 suites, including `tst_engine_live` against a real namchaind.
-- Earlier: M1 (shell, navigation, settings), M0 (repo, D14 in pedal.project `876715e`).
-- **Next: P1** (pedald's rig library API, in pedal.project) **then M3** (library and
-  browse view) once M2 is reviewed. Nothing touches vip before M9, and M9 starts only with the
-  owner's go-ahead.
+- **M3 done (2026-10-09), awaiting the owner's review.** The library is read directly and
+  read-only from namchaind's roots (or `rigpa.json`'s `library` overrides), on a worker thread,
+  cached by size and time: ljoss's NAM and WAV sniffs (plus the tail for 0.7 files' trailing
+  `metadata`) and its brand table (plus: bracketed text never names the brand). The browse view
+  lists models or IRs by folder; the rotary walks the switch then the rows and the list follows.
+- **P1 done (2026-10-09):** pedald's rig library API in pedal.project `70a6d35` (`GET /library/rigs`
+  with `running`; `GET`, `PUT`, `DELETE /library/rigs/<name>`; `POST …/rename`), 289 pedald tests,
+  and `sync-library` no longer takes `rigs/` from pedald. Reaches vip only with V1's apply.
+- The dev loop now uses `~/Documents/Audio` (64 models, 520 IRs, all downloaded); the fixture
+  rigs name real models (Ampeg VT-40, Boss SD-1, Orange Rockerverb) and the Mesa 4x12 IR.
+- Earlier: M2 (engine connection, dev loop), M1 (shell, navigation, settings), M0 (repo; D14 in
+  pedal.project `876715e`).
+- **Next: M4** (the rig view: rig list via pedald, the editor's tiles, rig switching) once M3 is
+  reviewed. Nothing touches vip before M9, and M9 starts only with the owner's go-ahead.
 
 ## Why
 
