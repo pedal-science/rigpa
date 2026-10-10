@@ -4,9 +4,22 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **V1 done (2026-10-10): rigpa runs on vip.** Next: V2, the D14 soak (rigpa off, idle, meters,
-  animating; `--demo-animate` doesn't exist yet), then V3 when the screen arrives. Two things wait on
-  the owner: enabling `vc4-kms-v3d` on vip (below), and re-measuring the cost table on the new kernel.
+- **V2 done (2026-10-10): the D14 gate passes.** Next: V3, when the screen arrives (its EDID mode,
+  `display.rotation`, touch mapping, USB power); and `MemoryMax` for the unit (256 MB, from V2's
+  141–143 MB PSS). A root that carries numaemu3's `device.env` is owed (pedal.project plan).
+- **V2: what it measured.** rigpa as its real unit on eglfs on vc4, HDMI forced on at 1920×480 with a
+  generated EDID (no screen yet), beside a 0.553 rig with pedald's warm document; five ten-minute arms
+  — off, idle, live meters, `--demo-animate`, off again — each 0 xruns, 0 overruns, worst block ≤ 58%.
+  Render p99 23% → 25% → 28% → 31%; rigpa 0.4% / 3% / 18.6% of core 0. Evidence and harness:
+  pedal.project `bench-results/2026-10-10-rigpa-soak-vip`.
+  - `--demo-animate` (`DemoAnimator`): each node lifted and swept along the editor and back, never
+    dropped (`tst_demo_live` checks the engine's generation and document don't move).
+  - What V2 needed on vip: the overlay through `vip-boot try-config`; numaemu3 (the HDMI DDC driver,
+    backlight and CEC kept through the trim, or vc4 never binds); the unit starting only with a screen
+    *connected* (`ExecCondition`), driving vc4 by path (`/etc/rigpa/kms.json`: card0 on the Pi 5 is
+    v3d, render-only), and giving up after five failed starts.
+  - `mise run vip-vnc` uses macOS Screen Sharing (sharp; TigerVNC isn't Retina-aware, RealVNC wants an
+    account), through `dev/vnc-relay.py`.
 - **V1: what is on vip.**
   - Kernel: rtpi's numaemu2 (`-numaemu2-trimmed`), numaemu1 plus vc4, v3d and USB HID kept through
     the trim (rtpi `config/vip-keep.fragment`). Promoted through `vip-boot try-kernel`, after the stock
