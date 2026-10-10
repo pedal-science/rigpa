@@ -61,6 +61,10 @@ QString RigSession::runningName(const QString &rigPath, const QString &rigName, 
 
 void RigSession::updateRunning()
 {
+    // While an apply is on its way the engine's status still names the rig before it (a rename
+    // would read as "not in the library" for a moment); the first status after it settles it.
+    if (m_applying > 0)
+        return;
     m_rigs->setRunning(runningName(m_engine->rigPath(), m_engine->documentName(), m_rigs->names()));
 }
 
@@ -192,6 +196,7 @@ void RigSession::record()
     m_redo.clear();
     m_lastParamKey.clear();
     emit historyChanged();
+    emit edited();
 }
 
 void RigSession::clearHistory()
@@ -212,6 +217,7 @@ void RigSession::undo()
     const QJsonObject before = m_undo.takeLast();
     m_lastParamKey.clear();
     emit historyChanged();
+    emit edited();
     applyJson(before);
 }
 
@@ -223,22 +229,40 @@ void RigSession::redo()
     const QJsonObject after = m_redo.takeLast();
     m_lastParamKey.clear();
     emit historyChanged();
+    emit edited();
     applyJson(after);
+}
+
+void RigSession::renameRunning(const QString &name)
+{
+    if (!m_hasDocument || name.isEmpty())
+        return;
+    QJsonObject json = m_document.json;
+    json.insert(QStringLiteral("name"), name);
+    // History snapshots are of this rig: they take the name as well, or undo would rename it back.
+    for (auto *list : {&m_undo, &m_redo})
+        for (QJsonObject &snapshot : *list)
+            snapshot.insert(QStringLiteral("name"), name);
+    applyJson(json);
 }
 
 void RigSession::applyDocument(const RigDocument &edited)
 {
     record();
-    applyJson(edits::toJson(edited));
+    applyJson(edits::toJson(edited), true);
 }
 
-void RigSession::applyJson(const QJsonObject &json)
+void RigSession::applyJson(const QJsonObject &json, bool recorded)
 {
     m_document = RigDocument::parse(json);
     emit documentChanged();
     ++m_applying;
     m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), json}},
-                                [this](const EngineReply &reply) {
+                                [this, recorded](const EngineReply &reply) {
+        if (!reply.ok && recorded && !m_undo.isEmpty()) {
+            m_undo.removeLast(); // nothing changed, so there is nothing to undo
+            emit historyChanged();
+        }
         --m_applying;
         if (reply.ok)
             say({});

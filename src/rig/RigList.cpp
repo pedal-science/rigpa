@@ -19,11 +19,19 @@ void RigList::start()
 
 void RigList::refresh()
 {
-    if (m_inFlight)
+    // Asked again while a request is out (after a change of rigpa's own): that answer may be from
+    // before the change, so it is dropped and the list asked for once more.
+    if (m_inFlight) {
+        m_again = true;
         return;
+    }
     m_inFlight = true;
     m_pedald->get(QStringLiteral("/library/rigs"), [this](const PedaldReply &reply) {
         m_inFlight = false;
+        if (std::exchange(m_again, false)) {
+            refresh();
+            return;
+        }
         if (!reply.ok) {
             const QString problem = tr("rig library: %1").arg(reply.error);
             if (problem != m_problem) {

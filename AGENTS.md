@@ -22,7 +22,14 @@ mise run dev            # namchaind (../namchain/build-mac) and pedald (../pedal
 mise run run -- --config .dev/rigpa.json
 ```
 
-On the Mac, `.` is apply, `,` is back, and ⌘ + trackpad scroll is the main rotary.
+On the Mac, `.` is apply, `,` is back, ⌘ + trackpad scroll is the main rotary, and ⌘Z / ⇧⌘Z
+undo and redo. Names are typed on Qt Virtual Keyboard, on the Mac too.
+
+For screenshots and checks: `--screenshot <png>`, `--view rig|browse|settings`, `--input <keys>`
+(replayed once the rig is on screen; `rigpa --help` lists the keys), and `--demo-drag from:to`.
+The live tests start their own `namchaind` and `pedald` on ports the kernel picks; a second dev
+back end beside yours: `RIGPA_DEV_DIR=$PWD/.dev-claude RIGPA_DEV_ENGINE_PORT=47811
+RIGPA_DEV_PEDALD_PORT=47821 dev/dev-pedal`.
 
 ## Constraints
 

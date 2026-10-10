@@ -5,6 +5,8 @@
 // the test case when namchain isn't built beside this repo.
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcess>
 #include <QTcpServer>
 #include <QTemporaryDir>
@@ -13,7 +15,9 @@
 struct LiveDaemon {
     QTemporaryDir dir;
     QProcess process;
+    QProcess pedald;
     quint16 port = 0;
+    quint16 pedaldPort = 0;
     QString token = QStringLiteral("rigpa-live-test-token-0123456789");
 
     // Skips or fails the calling test case when the daemon can't be used. `rig`, when set, is
@@ -55,12 +59,48 @@ struct LiveDaemon {
         QVERIFY(process.waitForStarted());
     }
 
+    // pedald too, from ../pedal.project's source (RIGPA_PEDAL_ROOTFS), as the dev loop runs it:
+    // the engine's configuration written out for it to read, and a Pico link that just retries.
+    void startPedald()
+    {
+        const QString rootfs = qEnvironmentVariable("RIGPA_PEDAL_ROOTFS");
+        if (rootfs.isEmpty() || !QFile::exists(rootfs + "/usr/local/sbin/pedald"))
+            QSKIP("no pedald (RIGPA_PEDAL_ROOTFS)");
+        {
+            QTcpServer probe;
+            QVERIFY(probe.listen(QHostAddress::LocalHost));
+            pedaldPort = probe.serverPort();
+        }
+        const auto write = [&](const QString &name, const QJsonObject &json) {
+            QFile f(dir.filePath(name));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(QJsonDocument(json).toJson());
+        };
+        write("namchaind.json", {{"backend", "null"}, {"rigs_root", dir.filePath("rigs")},
+                                 {"models_root", dir.filePath("lib")}, {"irs_root", dir.filePath("lib")},
+                                 {"socket", "d.sock"}, {"tcp_listen", true}, {"tcp_address", "127.0.0.1"},
+                                 {"tcp_port", port}, {"tcp_token_file", dir.filePath("token")}});
+        QDir().mkpath(dir.filePath("state"));
+        write("pedald.json", {{"uart_device", dir.filePath("no-pico")}, {"http_host", "127.0.0.1"},
+                              {"http_port", pedaldPort}, {"state_root", dir.filePath("state")}});
+        QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+        env.insert("PEDALD_LIB", rootfs + "/usr/local/lib");
+        pedald.setProcessEnvironment(env);
+        pedald.setWorkingDirectory(dir.path());
+        pedald.setProcessChannelMode(QProcess::MergedChannels);
+        pedald.start("python3", {rootfs + "/usr/local/sbin/pedald", "run", "--config", dir.filePath("pedald.json"),
+                                 "--engine-config", dir.filePath("namchaind.json")});
+        QVERIFY(pedald.waitForStarted());
+    }
+
     ~LiveDaemon()
     {
-        if (process.state() != QProcess::NotRunning) {
-            process.terminate();
-            if (!process.waitForFinished(3000))
-                process.kill();
+        for (QProcess *p : {&pedald, &process}) {
+            if (p->state() != QProcess::NotRunning) {
+                p->terminate();
+                if (!p->waitForFinished(3000))
+                    p->kill();
+            }
         }
     }
 };

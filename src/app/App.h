@@ -6,6 +6,7 @@
 #include "library/PickerModel.h"
 #include "rig/NodeEditorModel.h"
 #include "rig/PaletteModel.h"
+#include "rig/RigManager.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
@@ -37,11 +38,13 @@ class App : public QObject
     Q_PROPERTY(rigpa::NodeEditorModel *nodeEditor READ nodeEditor CONSTANT)
     Q_PROPERTY(rigpa::PickerModel *picker READ picker CONSTANT)
     Q_PROPERTY(rigpa::PaletteModel *palette READ palette CONSTANT)
+    Q_PROPERTY(rigpa::RigManager *manager READ manager CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
         Library *library, RigList *rigs, RigSession *rig, RigEditorModel *editor,
-        NodeEditorModel *nodeEditor, PickerModel *picker, PaletteModel *palette, QObject *parent = nullptr);
+        NodeEditorModel *nodeEditor, PickerModel *picker, PaletteModel *palette, RigManager *manager,
+        QObject *parent = nullptr);
     ~App() override;
 
     static App *create(QQmlEngine *, QJSEngine *);
@@ -57,6 +60,7 @@ public:
     NodeEditorModel *nodeEditor() const { return m_nodeEditor; }
     PickerModel *picker() const { return m_picker; }
     PaletteModel *palette() const { return m_palette; }
+    RigManager *manager() const { return m_manager; }
 
     // The header's +: the palette, over the rig view. What is chosen goes in after the selected
     // block (in its lane, if it is in one), or at the end of the first chain.
@@ -81,6 +85,7 @@ private:
     NodeEditorModel *m_nodeEditor;
     PickerModel *m_picker;
     PaletteModel *m_palette;
+    RigManager *m_manager;
 };
 
 } // namespace rigpa

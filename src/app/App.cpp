@@ -12,10 +12,10 @@ App *g_instance = nullptr;
 
 App::App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine, Library *library,
          RigList *rigs, RigSession *rig, RigEditorModel *editor, NodeEditorModel *nodeEditor,
-         PickerModel *picker, PaletteModel *palette, QObject *parent)
+         PickerModel *picker, PaletteModel *palette, RigManager *manager, QObject *parent)
     : QObject(parent), m_config(config), m_settings(settings), m_nav(nav), m_engine(engine),
       m_library(library), m_rigs(rigs), m_rig(rig), m_editor(editor), m_nodeEditor(nodeEditor),
-      m_picker(picker), m_palette(palette)
+      m_picker(picker), m_palette(palette), m_manager(manager)
 {
     Q_ASSERT(!g_instance);
     g_instance = this;
@@ -38,8 +38,15 @@ App::App(Config *config, Settings *settings, Navigator *nav, EngineSession *engi
             m_nodeEditor->close();
         if (!m_nav->hasOverlay(Navigator::Palette))
             m_palette->close();
+        if (!m_nav->hasOverlay(Navigator::Dialog))
+            m_manager->cancel();
     });
     connect(m_palette, &PaletteModel::chosen, this, &App::add);
+    // Rig management's dialogs are an overlay: back cancels one, as it closes any other.
+    connect(m_manager, &RigManager::dialogOpened, this, [this] {
+        m_nav->openOverlay(Navigator::Dialog, m_manager->ring());
+    });
+    connect(m_manager, &RigManager::dialogClosed, this, [this] { m_nav->closeOverlaysFrom(Navigator::Dialog); });
     connect(m_palette, &PaletteModel::openChanged, this, [this] {
         if (!m_palette->isOpen())
             m_nav->closeOverlaysFrom(Navigator::Palette);

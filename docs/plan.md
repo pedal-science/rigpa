@@ -4,8 +4,31 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **The owner asked (2026-10-09) for M6, M7 and M8 to run on without a review pause each; they
-  review after M8.** Also asked for and done: a double tap on a knob resets it to its default.
+- **M0–M8 are done (2026-10-09). Next: the owner's review of M5–M8 together** (they asked for
+  M6–M8 to run on without a pause each, and to review after M8). Then M9, which touches vip and
+  starts only with the owner's go-ahead.
+- Also asked for and done: a double tap on a knob resets it to its default.
+- **M8 done (2026-10-09).** Keeping the library in step (`RigManager`):
+  - Auto-save: a second after the last edit made here, the engine's document (`rig.get`) is PUT
+    to the library rig that is running. The header says saved / saving… / not in the library /
+    not saved. Edits still on their way delay it; Rename and Copy wait for it.
+  - Under the rig list (touch): New, Rename, Copy, Delete, on the running rig; Save as… when the
+    running rig isn't in the library. Each asks in a dialog (`RigDialog.qml`, an overlay whose
+    ring is OK and Cancel); names are checked as pedald checks them, and against the list (any
+    case). New loads the new rig. Renaming (or saving as) the running rig applies the document
+    under its new name: a name-only `rig.apply`, which the engine takes without a rebuild
+    (checked: the generation stays), and the history's snapshots take the name too.
+  - Qt Virtual Keyboard: `QT_IM_MODULE=qtvirtualkeyboard`, the `InputPanel` 880 wide at the
+    bottom, clear of a dialog's name row.
+  - The footer now says what the rig has to say (a refusal, a failed save); a refused apply no
+    longer leaves an undo step.
+  - Races found and fixed: the rig list dropped a refresh asked for while one was out (a deleted
+    rig could come back for a poll); the running rig was re-derived from a status older than an
+    apply in flight (a rename read as "not in the library" for a moment).
+  - `--input` replays once the rig is on screen (it used to fire at 1.5 s, before a slow start).
+  - Tests: `tst_manage_live` (namchaind and pedald, both real): auto-save, name checks, rename of
+    the running rig without a rebuild, copy, delete of the running rig, save as, new, cancel.
+    16 suites, green five runs in a row.
 - **M7 done (2026-10-09).** Adding, removing, lanes, undo:
   - The palette (`PaletteModel`, `AddPanel.qml`, the header's +): Amp (a NAM model and a tone
     stack, one element, as ljoss makes it), Parallel split (two empty lanes), and every engine
@@ -75,8 +98,7 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 - Earlier: M4 (rig view), M3 (library, browse), P1 (pedald rig API, pedal.project `70a6d35`),
   M2, M1, M0. `dev-pedal` takes `RIGPA_DEV_DIR` and port overrides, so a second back end can run
   beside yours.
-- **Next: M8.** Nothing touches vip before M9, and M9 starts only with the owner's
-  go-ahead.
+
 
 ## Why
 
@@ -307,9 +329,10 @@ Nothing touches vip before M9. Each step that touches vip waits for your go‑ah
 2. **pedal.project**, one commit per concern:
    - `config-pedal.txt` gets `dtoverlay=vc4-kms-v3d`, and its comment is rewritten.
    - `devices/vip/packages` gets the Qt 6.10 runtime, Mesa, libinput and fonts:
-     - Qt: `libqt6opengl6` holds `eglfs` and `eglfs-kms`; plus the `qml6-module-*` modules (including
-       `qml6-module-qtquick-shapes`, for the knobs),
-       `qt6-virtualkeyboard-plugin`, and `qt6-qpa-plugins` for VNC.
+     - Qt: `libqt6opengl6` holds `eglfs` and `eglfs-kms`; plus the `qml6-module-*` modules rigpa
+       imports (`qtquick-shapes` for the knobs, `qtquick-controls` for the name field,
+       `qtquick-virtualkeyboard`), `qt6-virtualkeyboard-plugin` (rigpa sets
+       `QT_IM_MODULE=qtvirtualkeyboard` itself), and `qt6-qpa-plugins` for VNC.
      - Mesa: `libegl-mesa0`, `libgbm1`, `libgles2`, `mesa-libgallium`.
      - The list is derived from the container build with `ldd` and `qmlimportscanner`, and
        asserted in `build-image` the way `ldd namchaind` is.

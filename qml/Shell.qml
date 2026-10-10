@@ -29,6 +29,7 @@ Item {
             clip: true
             // While an overlay is open, the view under it takes no input.
             readonly property bool overlaid: App.nodeEditor.isOpen || App.picker.isOpen || App.palette.isOpen
+                                             || App.manager.dialog !== ""
 
             RigView {
                 anchors.fill: parent
@@ -57,6 +58,10 @@ Item {
             AddPanel {
                 anchors.fill: parent
                 visible: App.palette.isOpen
+            }
+            RigDialog {
+                anchors.fill: parent
+                visible: App.manager.dialog !== ""
             }
         }
 

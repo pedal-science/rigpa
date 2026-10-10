@@ -24,7 +24,10 @@ Panel {
 
     ListView {
         id: list
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: actions.top
         anchors.margins: 6
         model: App.rigs
         boundsBehavior: Flickable.StopAtBounds
@@ -66,6 +69,29 @@ Panel {
                 }
             }
         }
+    }
+
+    // Managing the running rig (touch only). A rig the library doesn't have can only be saved.
+    Grid {
+        id: actions
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 8
+        columns: width >= 360 ? 4 : 2
+        spacing: 6
+        readonly property bool inLibrary: App.rigs.running !== ""
+        readonly property real cell: (width - (columns - 1) * spacing) / columns
+        HeaderButton { width: actions.cell; base: Theme.raised; label: qsTr("New"); onClicked: App.manager.begin("new") }
+        HeaderButton {
+            width: actions.cell
+            base: Theme.raised
+            label: actions.inLibrary ? qsTr("Rename") : qsTr("Save as…")
+            enabled: actions.inLibrary || App.rig.hasDocument
+            onClicked: App.manager.begin(actions.inLibrary ? "rename" : "saveAs")
+        }
+        HeaderButton { width: actions.cell; base: Theme.raised; label: qsTr("Copy"); enabled: actions.inLibrary; onClicked: App.manager.begin("duplicate") }
+        HeaderButton { width: actions.cell; base: Theme.raised; label: qsTr("Delete"); enabled: actions.inLibrary; onClicked: App.manager.begin("delete") }
     }
 
     Text {

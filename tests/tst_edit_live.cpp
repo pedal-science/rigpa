@@ -228,11 +228,13 @@ private slots:
             QVERIFY2(palette.make(r), qPrintable(palette.data(palette.index(r), PaletteModel::NameRole).toString()));
 
         // Dual can't take another amp: over the budget, refused, and the rig stays as it was.
+        session.clearHistory();
         RigDocument doc = session.document();
         QVERIFY(edits::insert(doc, *made, {0, {}, 0}));
         session.applyDocument(doc);
         QTRY_VERIFY_WITH_TIMEOUT(!session.applying(), 5000);
         QVERIFY2(session.message().startsWith("Too much for the pedal"), qPrintable(session.message()));
+        QVERIFY(!session.canUndo()); // a refused change leaves nothing to undo
         QTRY_VERIFY_WITH_TIMEOUT(!session.findElement(made->element), 5000);
 
         // Clean can.

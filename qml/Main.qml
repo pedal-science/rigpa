@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.VirtualKeyboard
 import QtQuick.Window
 import Rigpa.Core
 
@@ -23,9 +24,19 @@ Window {
     title: "rigpa"
     color: Theme.menuBackground
 
-    Shell {
+    Item {
         width: Theme.screenWidth
         height: Theme.screenHeight
+        Shell { anchors.fill: parent }
+        // Qt Virtual Keyboard, along the bottom while a text field has focus.
+        InputPanel {
+            id: keyboard
+            z: 100
+            width: 880 // about 276 tall: clear of a dialog's name row above it
+            x: (parent.width - width) / 2
+            y: active ? parent.height - height : parent.height
+            visible: active
+        }
         transform: [
             Rotation { angle: window.rotation },
             Translate {

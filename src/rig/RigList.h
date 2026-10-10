@@ -58,6 +58,7 @@ private:
     QString m_problem;
     bool m_loaded = false;
     bool m_inFlight = false;
+    bool m_again = false;
     QTimer m_timer;
 };
 

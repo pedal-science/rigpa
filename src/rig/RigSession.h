@@ -73,6 +73,9 @@ public:
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     void clearHistory();
+    // The running rig was renamed (or saved under a new name): the engine's document takes the
+    // name too, so the library and the engine agree again. Not an edit: no history, no save.
+    void renameRunning(const QString &name);
     // A line for the footer (empty clears it).
     void say(const QString &message);
     // Reads the document again (after an edit the engine's status doesn't show).
@@ -85,13 +88,16 @@ signals:
     void documentChanged();
     void messageChanged();
     void historyChanged();
+    // An edit was made here (the auto-save waits for a quiet second after the last one).
+    void edited();
 
 private:
     void fetchDocument();
     void updateRunning();
     void maybeLoadFirst();
     void record();
-    void applyJson(const QJsonObject &json);
+    // `recorded`: the edit put a step in the history, which a refusal takes out again.
+    void applyJson(const QJsonObject &json, bool recorded = false);
 
     EngineSession *m_engine;
     RigList *m_rigs;

@@ -9,12 +9,14 @@
 #include "pedald/PedaldClient.h"
 #include "rig/NodeEditorModel.h"
 #include "rig/PaletteModel.h"
+#include "rig/RigManager.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
 
 #include <QCommandLineParser>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QMetaEnum>
@@ -29,6 +31,9 @@ Q_IMPORT_QML_PLUGIN(Rigpa_CorePlugin)
 
 int main(int argc, char *argv[])
 {
+    // Names are typed on Qt Virtual Keyboard (the pedal has no keyboard; on the Mac it shows too).
+    if (qEnvironmentVariableIsEmpty("QT_IM_MODULE"))
+        qputenv("QT_IM_MODULE", "qtvirtualkeyboard");
     QGuiApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("rigpa"));
     QGuiApplication::setOrganizationDomain(QStringLiteral("hemsley.cc"));
@@ -47,7 +52,8 @@ int main(int argc, char *argv[])
         QStringLiteral("view"));
     const QCommandLineOption inputOption(QStringLiteral("input"),
         QStringLiteral("Replay hardware controls once loaded (for demos and checks): '>' and '<' turn "
-                       "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette)."),
+                       "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette), 'N', 'R', 'C' "
+                       "and 'D' are the rig list's New, Rename, Copy and Delete."),
         QStringLiteral("keys"));
     const QCommandLineOption demoDragOption(QStringLiteral("demo-drag"),
         QStringLiteral("For demos: lift the rig editor's node <from> and hold it over the left edge of "
@@ -80,8 +86,9 @@ int main(int argc, char *argv[])
     rigpa::NodeEditorModel nodeEditor(&rigSession, &engineSession, &editor, &library);
     rigpa::PickerModel picker(&library);
     rigpa::PaletteModel palette(&engineSession, &library);
+    rigpa::RigManager manager(&engineSession, &rigSession, &rigs, &pedald);
     rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor,
-                         &nodeEditor, &picker, &palette);
+                         &nodeEditor, &picker, &palette, &manager);
 
     // The rotary and apply in rig view: load a rig from the list.
     QObject::connect(&nav, &rigpa::Navigator::rigLoadRequested, &rigSession, &rigpa::RigSession::loadRig);
@@ -119,15 +126,34 @@ int main(int argc, char *argv[])
 
     if (parser.isSet(inputOption)) {
         const QString keys = parser.value(inputOption);
-        QTimer::singleShot(1500, &app, [&nav, &appObject, keys] {
+        const auto replay = [&nav, &appObject, keys] {
             for (const QChar c : keys) {
                 if (c == u'+') appObject.openPalette();
-                if (c == u'>') nav.rotate(1);
+                else if (c == u'N') appObject.manager()->begin(QStringLiteral("new"));
+                else if (c == u'R') appObject.manager()->begin(QStringLiteral("rename"));
+                else if (c == u'C') appObject.manager()->begin(QStringLiteral("duplicate"));
+                else if (c == u'D') appObject.manager()->begin(QStringLiteral("delete"));
+                else if (c == u'>') nav.rotate(1);
                 else if (c == u'<') nav.rotate(-1);
                 else if (c == u'.') nav.apply();
                 else if (c == u',') nav.back();
             }
+        };
+        // Once the library is read and the rig is on screen (or after 5 s regardless), so a
+        // replay means the same thing however long the start took.
+        auto *wait = new QTimer(&app);
+        wait->setInterval(100);
+        QObject::connect(wait, &QTimer::timeout, &app, [wait, replay, &rigSession, &library, started = QElapsedTimer()]() mutable {
+            if (!started.isValid())
+                started.start();
+            const bool ready = rigSession.hasDocument() && !library.scanning() && started.elapsed() >= 1500;
+            if (!ready && started.elapsed() < 5000)
+                return;
+            wait->deleteLater();
+            wait->stop();
+            replay();
         });
+        wait->start();
     }
 
     if (parser.isSet(demoDragOption)) {

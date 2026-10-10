@@ -26,6 +26,7 @@ Rectangle {
     }
 
     Text {
+        id: rigName
         anchors.left: title.right
         anchors.leftMargin: 20
         anchors.baseline: title.baseline
@@ -36,6 +37,22 @@ Rectangle {
         text: App.engine.connection !== EngineSession.Connected ? "\u2014"
             : App.engine.hasRig ? (App.engine.rigName !== "" ? App.engine.rigName : qsTr("(unnamed rig)"))
             : qsTr("no rig running")
+    }
+
+    // Whether the library has what is playing: saved, on its way, or not in the library at all.
+    Text {
+        id: saveMark
+        anchors.left: rigName.right
+        anchors.leftMargin: 14
+        anchors.baseline: title.baseline
+        visible: parent.inRigView && !parent.editingNode && text !== ""
+        font.pixelSize: Theme.fontSmall
+        readonly property string state: App.manager.saveState
+        color: state === "unsaved" || state === "failed" ? Theme.warn : Theme.dim
+        text: state === "saved" ? qsTr("saved")
+            : state === "pending" || state === "saving" ? qsTr("saving…")
+            : state === "unsaved" ? qsTr("not in the library")
+            : state === "failed" ? qsTr("not saved") : ""
     }
 
     Row {

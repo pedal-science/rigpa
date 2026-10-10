@@ -38,6 +38,7 @@ qt_add_qml_module(rigpa_core
         src/rig/RigEdits.cpp src/rig/RigEdits.h
         src/rig/RigEditorModel.cpp src/rig/RigEditorModel.h
         src/rig/RigList.cpp src/rig/RigList.h
+        src/rig/RigManager.cpp src/rig/RigManager.h
         src/rig/RigSession.cpp src/rig/RigSession.h
 )
 target_include_directories(rigpa_core PUBLIC src)
@@ -67,6 +68,7 @@ qt_add_qml_module(rigpa
         qml/views/NodeEditor.qml
         qml/views/Picker.qml
         qml/views/AddPanel.qml
+        qml/views/RigDialog.qml
         qml/controls/MenuButton.qml
         qml/controls/Panel.qml
         qml/controls/ValueBar.qml

@@ -21,6 +21,20 @@ Rectangle {
         font.pixelSize: Theme.fontNormal
     }
 
+    // The latest thing the rig had to say: a refusal, a missing model, a save that failed.
+    Text {
+        anchors.right: parent.right
+        anchors.rightMargin: 24
+        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width * 0.6
+        horizontalAlignment: Text.AlignRight
+        elide: Text.ElideRight
+        visible: App.engine.connection === EngineSession.Connected && App.rig.message !== ""
+        text: App.rig.message
+        color: Theme.warn
+        font.pixelSize: Theme.fontNormal
+    }
+
     Row {
         anchors.left: parent.left
         anchors.leftMargin: 24
