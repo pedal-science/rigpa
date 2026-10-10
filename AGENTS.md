@@ -31,6 +31,10 @@ The live tests start their own `namchaind` and `pedald` on ports the kernel pick
 back end beside yours: `RIGPA_DEV_DIR=$PWD/.dev-claude RIGPA_DEV_ENGINE_PORT=47811
 RIGPA_DEV_PEDALD_PORT=47821 dev/dev-pedal`.
 
+Against the pedal itself (vip, over WiFi): `mise run vip` writes `.vip/rigpa.json` (fetching the
+engine token once over ssh), then `mise run run -- --config .vip/rigpa.json`. Edits there are real:
+they play on the pedal and save into its library.
+
 ## Constraints
 
 - QML is for views, gestures and animation only. Protocol, models, layout maths, navigation

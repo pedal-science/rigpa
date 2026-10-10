@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# dev/use-vip — point rigpa on the Mac at the pedal itself (vip) over WiFi (docs/plan.md, M9).
+#
+#   dev/use-vip [--host vip]     write .vip/rigpa.json and .vip/token, then:
+#   mise run run -- --config .vip/rigpa.json
+#
+# The engine token is fetched once over ssh (`sudo cat /etc/namchain/token`) into .vip/token, mode
+# 0600; it is never printed. Run it again when vip's token changes. The host's IPv4 address is asked
+# for at the same time: vip's name resolves to IPv6 here, and namchaind and pedald listen on IPv4.
+#
+# What rigpa does there is real: edits play on the pedal and auto-save into vip's rig library. A
+# connection takes one of namchaind's TCP slots (tcp_max_connections, 4 by default). The library rigpa
+# reads is the Mac's ~/Documents/Audio (or RIGPA_DEV_LIBRARY's), which sync-library mirrors to the
+# pedal, so the ids match.
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+OUT=$ROOT/.vip
+HOST=vip
+while (($#)); do
+  case $1 in
+    --host) HOST=$2; shift ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) printf 'use-vip: unknown argument %s\n' "$1" >&2; exit 2 ;;
+  esac
+  shift
+done
+die() { printf 'use-vip: %s\n' "$*" >&2; exit 1; }
+
+LIBRARY=${RIGPA_DEV_LIBRARY:-$HOME/Documents/Audio}
+[[ -d $LIBRARY/NAM && -d $LIBRARY/IRs ]] || die "no NAM/ and IRs/ in $LIBRARY (set RIGPA_DEV_LIBRARY)"
+
+mkdir -p "$OUT"
+chmod 700 "$OUT"
+umask 077
+TOKEN=$OUT/token
+ssh -o BatchMode=yes "$HOST" 'sudo -n cat /etc/namchain/token' > "$TOKEN.new" || {
+  rm -f "$TOKEN.new"
+  die "could not read /etc/namchain/token on $HOST"
+}
+[[ $(head -1 "$TOKEN.new" | tr -d '[:space:]' | wc -c) -ge 16 ]] || { rm -f "$TOKEN.new"; die "the token from $HOST is too short"; }
+chmod 600 "$TOKEN.new"
+mv "$TOKEN.new" "$TOKEN"
+
+# The address of the interface vip's default route leaves by (its WiFi).
+ADDRESS=$(ssh -o BatchMode=yes "$HOST" "ip -4 -o route get 1.1.1.1 | sed -n 's/.* src \([0-9.]*\).*/\1/p'")
+[[ $ADDRESS =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "could not find $HOST's IPv4 address (got '$ADDRESS')"
+
+cat > "$OUT/rigpa.json" <<JSON
+{
+  "engine": {"host": "$ADDRESS", "port": 47810, "token_file": "$TOKEN"},
+  "pedald": {"host": "$ADDRESS", "port": 47820},
+  "library": {"models": "$LIBRARY/NAM", "irs": "$LIBRARY/IRs"},
+  "settings_file": "$OUT/settings.ini"
+}
+JSON
+printf 'rigpa for %s (%s): mise run run -- --config %s/rigpa.json\n' "$HOST" "$ADDRESS" "$OUT"

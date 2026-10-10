@@ -39,3 +39,7 @@ run = "build/mac-debug/rigpa.app/Contents/MacOS/rigpa"
 [tasks.dev]
 description = "Run namchaind and pedald locally under .dev/ (the dev loop)"
 run = "dev/dev-pedal"
+
+[tasks.vip]
+description = "Point rigpa at vip over WiFi: write .vip/rigpa.json, fetching the token once (M9)"
+run = "dev/use-vip"

@@ -4,9 +4,24 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **M0–M8 are done (2026-10-09). Next: the owner's review of M5–M8 together** (they asked for
-  M6–M8 to run on without a pause each, and to review after M8). Then M9, which touches vip and
-  starts only with the owner's go-ahead.
+- **M9 done (2026-10-10); M5–M8 reviewed, and the go-ahead for vip given.** Next: V1, vip's
+  bring-up (§5) — a kernel with KMS and touch, packages, `build-rigpa`, `deploy-rigpa`, the unit.
+  It changes vip's kernel and root, so each step that touches vip still waits for the owner's
+  go-ahead, under `scripts/host-lock`.
+- **M9: the Mac build against vip.** `mise run vip` (`dev/use-vip`) fetches vip's engine token
+  once over ssh (`sudo -n cat /etc/namchain/token`, into `.vip/token`, 0600, never printed) and
+  writes `.vip/rigpa.json`; `mise run run -- --config .vip/rigpa.json`. It asks vip for its IPv4
+  address at the same time: `vip` resolves to IPv6 on the Mac, and namchaind and pedald listen on
+  IPv4 (`0.0.0.0`). The library rigpa reads is the Mac's `~/Documents/Audio`, which
+  `sync-library` mirrors, so ids match. Checked read-only: vip's running rig (`last.json`'s
+  t5-lstm, its model missing on vip, as the engine says), live status, and an empty rig library
+  (`GET /library/rigs` agrees: only the resume snapshot is there). Edits made this way are real:
+  they play on the pedal and auto-save into vip's library.
+- Found by the dev loop and fixed after M8: a cab's low cut saved at its 10 Hz minimum stopped
+  namchaind starting (namchain `784d8af`: the biquad now takes 10 Hz, and a test holds every
+  macro's range inside its targets'), and rigpa now honours `min_inclusive`/`max_inclusive`
+  (`8df29fc`).
+- **M0–M8 are done (2026-10-09).**
 - Also asked for and done: a double tap on a knob resets it to its default.
 - **M8 done (2026-10-09).** Keeping the library in step (`RigManager`):
   - Auto-save: a second after the last edit made here, the engine's document (`rig.get`) is PUT
