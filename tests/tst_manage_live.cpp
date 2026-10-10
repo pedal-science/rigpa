@@ -104,13 +104,17 @@ private slots:
 
     void copyThenDelete()
     {
+        // The copy is named from the running rig, so that has to have settled first: on a loaded
+        // build machine a status from before the rename can still be on its way (an image build
+        // failed here once, 2026-10-10).
+        QTRY_COMPARE_WITH_TIMEOUT(rigs.running(), QStringLiteral("Sparkle"), 5000);
         manager.begin("duplicate");
         QCOMPARE(manager.proposedName(), QStringLiteral("Sparkle copy"));
         manager.confirm();
         QVERIFY(settled());
         QTRY_VERIFY_WITH_TIMEOUT(rigs.names().contains("Sparkle copy"), 5000);
-        QCOMPARE(stored("Sparkle copy").value("name").toString(), QStringLiteral("Sparkle copy"));
-        QCOMPARE(rigs.running(), QStringLiteral("Sparkle")); // a copy isn't loaded
+        QTRY_COMPARE_WITH_TIMEOUT(stored("Sparkle copy").value("name").toString(), QStringLiteral("Sparkle copy"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(rigs.running(), QStringLiteral("Sparkle"), 5000); // a copy isn't loaded
 
         session.loadRigNamed("Sparkle copy");
         QTRY_COMPARE_WITH_TIMEOUT(engine.documentName(), QStringLiteral("Sparkle copy"), 5000);
