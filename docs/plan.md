@@ -4,10 +4,33 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **M9 done (2026-10-10); M5–M8 reviewed, and the go-ahead for vip given.** Next: V1, vip's
-  bring-up (§5) — a kernel with KMS and touch, packages, `build-rigpa`, `deploy-rigpa`, the unit.
-  It changes vip's kernel and root, so each step that touches vip still waits for the owner's
-  go-ahead, under `scripts/host-lock`.
+- **V1 done (2026-10-10): rigpa runs on vip.** Next: V2, the D14 soak (rigpa off, idle, meters,
+  animating; `--demo-animate` doesn't exist yet), then V3 when the screen arrives. Two things wait on
+  the owner: enabling `vc4-kms-v3d` on vip (below), and re-measuring the cost table on the new kernel.
+- **V1: what is on vip.**
+  - Kernel: rtpi's numaemu2 (`-numaemu2-trimmed`), numaemu1 plus vc4, v3d and USB HID kept through
+    the trim (rtpi `config/vip-keep.fragment`). Promoted through `vip-boot try-kernel`, after the stock
+    kernel was tried back into slot b: slot a pedal, slot b fallback, both good.
+  - The root (`make-card --remote`, image `20261010T134132Z`): Qt 6.10.2 from the snapshot (eglfs,
+    vnc, offscreen, the QML modules), Mesa, a font; rigpa in `/opt/rigpa/<commit>` with its
+    `MANIFEST`, `packaging/systemd/rigpa.service` (this repo) plus pedal.project's drop-in (core 0,
+    `Nice=5`, idle IO, `OOMScoreAdjust=500`), the `rigpa` user, `/etc/rigpa/rigpa.json`; namchaind
+    takes 8 TCP clients. make-card pins rigpa as its fourth repository, builds it in the container
+    (`devices/common/image/build-rigpa`, its live tests against the namchaind just built), and renders
+    a frame offscreen inside the root, so a missing QML module stops the build.
+  - `scripts/deploy-rigpa` (pedal.project) updates it on a running vip; `components.lock` and
+    `scripts/status` know it.
+  - The unit is enabled and **waits for vc4's HDMI connector**: no screen, no start, no restart loop.
+    Run as its user offscreen on vip, it shows vip's rig and status (`build/review/v1-on-vip.png`).
+    Three runs added no xruns.
+  - **The KMS overlay is open.** vip-boot writes the pedal boot `config.txt` once, at card build, and
+    `--remote` replaces only the root, so `dtoverlay=vc4-kms-v3d` can't reach a running vip that way:
+    it needs a card write or a vip-boot change (rtpi) that tries a config line as it tries a kernel.
+    The plan's V1 step assumed `--remote` would carry it. Decide by V3.
+  - To see it before the screen: on vip, `QT_QPA_PLATFORM=vnc:size=1920x480` (unauthenticated, on the
+    LAN: start it by hand, stop it after) or `offscreen` with `--screenshot`.
+  - Linux fix found on the way: the engine's `/etc/namchain/namchaind.json` is the default only where
+    it exists, as pedald's already was.
 - **M9: the Mac build against vip.** `mise run vip` (`dev/use-vip`) fetches vip's engine token
   once over ssh (`sudo -n cat /etc/namchain/token`, into `.vip/token`, 0600, never printed) and
   writes `.vip/rigpa.json`; `mise run run -- --config .vip/rigpa.json`. It asks vip for its IPv4
