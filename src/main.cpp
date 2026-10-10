@@ -1,5 +1,6 @@
 #include "app/App.h"
 #include "app/Config.h"
+#include "app/DemoAnimator.h"
 #include "app/DevInput.h"
 #include "app/Navigator.h"
 #include "app/Settings.h"
@@ -59,7 +60,10 @@ int main(int argc, char *argv[])
         QStringLiteral("For demos: lift the rig editor's node <from> and hold it over the left edge of "
                        "node <to> (both counted in signal order), without dropping."),
         QStringLiteral("from:to"));
-    parser.addOptions({configOption, screenshotOption, viewOption, inputOption, demoDragOption});
+    const QCommandLineOption demoAnimateOption(QStringLiteral("demo-animate"),
+        QStringLiteral("For the D14 soak: keep the screen busy for as long as rigpa runs, lifting each "
+                       "node in turn and sweeping it through the editor, never dropping it."));
+    parser.addOptions({configOption, screenshotOption, viewOption, inputOption, demoDragOption, demoAnimateOption});
     parser.process(app);
 
     rigpa::Config config;
@@ -165,6 +169,10 @@ int main(int argc, char *argv[])
                 editor.dragTo(QPointF(target.left() + 12, target.center().y()));
         });
     }
+
+    rigpa::DemoAnimator animator(&editor, &nav);
+    if (parser.isSet(demoAnimateOption))
+        QTimer::singleShot(1500, &app, [&animator] { animator.start(); });
 
     if (parser.isSet(screenshotOption)) {
         const QString path = parser.value(screenshotOption);

@@ -18,6 +18,7 @@ qt_add_qml_module(rigpa_core
         src/app/App.cpp src/app/App.h
         src/app/Config.cpp src/app/Config.h
         src/app/DevInput.cpp src/app/DevInput.h
+        src/app/DemoAnimator.cpp src/app/DemoAnimator.h
         src/app/FocusRing.cpp src/app/FocusRing.h
         src/app/Navigator.cpp src/app/Navigator.h
         src/app/Settings.cpp src/app/Settings.h
