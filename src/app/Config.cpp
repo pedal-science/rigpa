@@ -62,12 +62,12 @@ bool Config::loadJson(const QJsonObject &root, QString *error)
         return false;
     }
     // The engine: its own config file first (one home per fact, as pedald reads it), then any
-    // explicit values. On the pedal the engine's file is the default.
+    // explicit values. On the pedal the engine's file is the default, where it exists (as pedald's
+    // is, below): a host without one isn't a pedal, and starts with the built-in defaults.
     QString engineConfig = root.value(QStringLiteral("engine_config")).toString();
-#ifdef Q_OS_LINUX
-    if (!root.contains(QStringLiteral("engine_config")) && !root.contains(QStringLiteral("engine")))
+    if (!root.contains(QStringLiteral("engine_config")) && !root.contains(QStringLiteral("engine"))
+        && QFile::exists(QStringLiteral("/etc/namchain/namchaind.json")))
         engineConfig = QStringLiteral("/etc/namchain/namchaind.json");
-#endif
     if (!engineConfig.isEmpty()) {
         QFile file(engineConfig);
         if (!file.open(QIODevice::ReadOnly)) {

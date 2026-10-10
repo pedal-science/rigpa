@@ -1,0 +1,40 @@
+[Unit]
+Description=rigpa, the pedal's UI
+Documentation=https://github.com/rikkus/rigpa
+# A client of namchaind and pedald: it waits for neither (it reconnects), but starting after them
+# saves it a round of retries at boot.
+After=namchaind.service pedald.service
+# Its configuration. Boot without it is skipped rather than looping in a restart storm.
+ConditionPathExists=/etc/rigpa/rigpa.json
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/rigpa --config /etc/rigpa/rigpa.json
+Restart=on-failure
+RestartSec=2
+
+# A screen on KMS, no window system: Qt's eglfs on the GPU's DRM device.
+Environment=QT_QPA_PLATFORM=eglfs
+Environment=QT_QPA_EGLFS_HIDECURSOR=1
+Environment=QT_IM_MODULE=qtvirtualkeyboard
+
+# Its own user, in the groups that open the GPU (video, render) and the touchscreen (input). It
+# writes nothing but its settings (StateDirectory: /var/lib/rigpa), and reads the library.
+User=rigpa
+Group=rigpa
+SupplementaryGroups=video render input
+StateDirectory=rigpa
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+# The engine's token is root's; systemd hands over a readable copy ($CREDENTIALS_DIRECTORY/token),
+# which rigpa reads before any token file its configuration names.
+LoadCredential=token:/etc/namchain/token
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=rigpa
+
+[Install]
+WantedBy=multi-user.target
