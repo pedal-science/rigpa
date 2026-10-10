@@ -16,7 +16,11 @@ const char *kSchema = R"({"ok":true,"nodes":[
    {"id":"mode","kind":"option","name":"Mode","default":0.0,"options":[{"label":"Peaking","value":"peaking"},
      {"label":"Low shelf","value":"lowshelf"}],"options_from":null,"patchable":true,"rampable":false,"scale":"linear"},
    {"id":"freq","kind":"number","name":"Frequency","default":1000.0,"min":10.0,"max":null,"scale":"log",
-     "unit":"Hz","patchable":true,"rampable":true}]},
+     "unit":"Hz","patchable":true,"rampable":true},
+   {"id":"q","kind":"number","name":"Q","default":0.707,"min":0.0,"min_inclusive":false,"max":20.0,
+     "max_inclusive":true,"scale":"log","patchable":true,"rampable":true},
+   {"id":"gain_db","kind":"number","name":"Gain","default":0.0,"min":-30.0,"min_inclusive":false,"max":30.0,
+     "max_inclusive":false,"unit":"dB"}]},
  {"id":"nc.nam","kind":"primitive","name":"NAM model","flags":{"bypassable":true},
   "params":[{"id":"model","kind":"option","name":"Model","default":null,"options":[{"label":"a","value":"a"}],
      "options_from":"models","patchable":true}]},
@@ -88,6 +92,37 @@ private slots:
         QCOMPARE(NodeEditorModel::valueAt(bass, 2.0), 18.0); // clamped
         const ParamSpec &outputs = *s.type("nc.split")->param("outputs");
         QCOMPARE(NodeEditorModel::valueAt(outputs, 0.5), 33.0); // snapped to its step
+    }
+
+    void excludedEndsAreNeverSent()
+    {
+        const Schema s = schema();
+        const ParamSpec &freq = *s.type("nc.eq.biquad")->param("freq");
+        QVERIFY(freq.minInclusive); // absent means allowed
+        QCOMPARE(Schema::lowerOf(freq), 10.0);
+
+        // "More than -30" and "less than 30": the knob's ends are just inside.
+        const ParamSpec &gain = *s.type("nc.eq.biquad")->param("gain_db");
+        QVERIFY(!gain.minInclusive);
+        QVERIFY(!gain.maxInclusive);
+        QVERIFY(Schema::lowerOf(gain) > -30.0 && Schema::lowerOf(gain) < -29.99);
+        QVERIFY(Schema::upperOf(gain) < 30.0 && Schema::upperOf(gain) > 29.99);
+        QVERIFY(NodeEditorModel::valueAt(gain, 0) > -30.0);
+        QVERIFY(NodeEditorModel::valueAt(gain, 1) < 30.0);
+
+        // A log scale with nothing but "more than 0" below: a stand-in a thousandth of the top.
+        const ParamSpec &q = *s.type("nc.eq.biquad")->param("q");
+        QCOMPARE(Schema::lowerOf(q), 0.02);
+        QCOMPARE(NodeEditorModel::valueAt(q, 0), 0.02);
+        QVERIFY(qAbs(NodeEditorModel::valueAt(q, 0.5) - std::sqrt(0.02 * 20)) < 1e-9); // still logarithmic
+
+        // A stepped parameter steps in.
+        ParamSpec count;
+        count.min = 0;
+        count.minInclusive = false;
+        count.max = 8;
+        count.step = 1;
+        QCOMPARE(Schema::lowerOf(count), 1.0);
     }
 
     void formats()

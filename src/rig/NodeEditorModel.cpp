@@ -406,9 +406,10 @@ void NodeEditorModel::setValue(int index, double value)
 {
     Control &c = m_controls[index];
     if (c.spec.kind == ParamSpec::Number) {
-        value = std::clamp(value, Schema::lowerOf(c.spec), Schema::upperOf(c.spec));
         if (c.spec.step <= 0)
             value = std::round(value * 1e4) / 1e4; // no 4.800000000000007 in a saved rig
+        // After the rounding, so an end the engine excludes can't be rounded back onto.
+        value = std::clamp(value, Schema::lowerOf(c.spec), Schema::upperOf(c.spec));
     }
     else if (c.spec.kind == ParamSpec::Option)
         value = std::clamp(std::round(value), 0.0, double(c.spec.options.size() - 1));

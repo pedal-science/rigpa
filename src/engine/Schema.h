@@ -17,6 +17,8 @@ struct ParamSpec {
     QString name;
     Kind kind = Number;
     std::optional<double> min, max;
+    bool minInclusive = true;    // whether the bound itself is allowed ("min_inclusive")
+    bool maxInclusive = true;
     double defaultValue = 0;
     bool hasDefault = false;
     bool log = false;            // "scale": "log"
@@ -56,7 +58,9 @@ public:
     QStringList typeIds() const { return m_order; }
 
     // A number parameter's range, with a stand-in where the schema leaves an end open (a biquad's
-    // frequency has no maximum): what a knob needs to have two ends.
+    // frequency has no maximum): what a knob needs to have two ends. Both ends are values the engine
+    // accepts: an excluded bound is approached by a step (or a ten-thousandth, rigpa's finest), and a
+    // logarithmic parameter's end at zero is a stand-in a thousandth of the other end.
     static double lowerOf(const ParamSpec &p);
     static double upperOf(const ParamSpec &p);
 

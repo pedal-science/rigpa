@@ -2,6 +2,9 @@
 
 #include <QJsonArray>
 
+#include <algorithm>
+#include <cmath>
+
 namespace rigpa {
 
 namespace {
@@ -32,6 +35,8 @@ ParamSpec parseParam(const QJsonObject &o)
     p.kind = kindOf(o.value(QStringLiteral("kind")).toString());
     p.min = numberOrNothing(o.value(QStringLiteral("min")));
     p.max = numberOrNothing(o.value(QStringLiteral("max")));
+    p.minInclusive = o.value(QStringLiteral("min_inclusive")).toBool(true);
+    p.maxInclusive = o.value(QStringLiteral("max_inclusive")).toBool(true);
     const QJsonValue def = o.value(QStringLiteral("default"));
     p.hasDefault = def.isDouble() || def.isBool();
     p.defaultValue = def.isBool() ? (def.toBool() ? 1 : 0) : def.toDouble();
@@ -95,25 +100,45 @@ const NodeTypeSpec *Schema::type(const QString &id) const
     return it == m_types.cend() ? nullptr : &*it;
 }
 
-double Schema::lowerOf(const ParamSpec &p)
+namespace {
+
+// The nearest value inside an excluded bound: a step in, or a ten-thousandth (NodeEditorModel rounds
+// continuous values to 1e-4, so a smaller nudge would round back onto the bound).
+double inside(const ParamSpec &p, double bound, double direction)
 {
-    if (p.min)
-        return *p.min;
-    return p.log ? 1 : 0;
+    const double by = p.step > 0 ? p.step : std::max(std::abs(bound) * 1e-4, 1e-4);
+    return bound + direction * by;
 }
 
-double Schema::upperOf(const ParamSpec &p)
+// Open-ended at the top: what the parameter's unit makes sensible on a guitar pedal.
+double openUpper(const ParamSpec &p, double lower)
 {
-    if (p.max)
-        return *p.max;
-    // Open-ended: what the parameter's unit makes sensible on a guitar pedal.
     if (p.unit == QLatin1String("Hz"))
         return 20000;
     if (p.unit == QLatin1String("ms"))
         return 2000;
     if (p.unit == QLatin1String("samples"))
         return 96000;
-    return lowerOf(p) + 100;
+    return lower + 100;
+}
+
+} // namespace
+
+double Schema::lowerOf(const ParamSpec &p)
+{
+    if (!p.min)
+        return p.log ? 1 : 0;
+    // A log scale can't reach zero (a Q has no lower end but "more than 0").
+    if (p.log && *p.min <= 0)
+        return (p.max ? *p.max : openUpper(p, 1)) / 1000;
+    return p.minInclusive ? *p.min : inside(p, *p.min, +1);
+}
+
+double Schema::upperOf(const ParamSpec &p)
+{
+    if (p.max)
+        return p.maxInclusive ? *p.max : inside(p, *p.max, -1);
+    return openUpper(p, lowerOf(p));
 }
 
 } // namespace rigpa
