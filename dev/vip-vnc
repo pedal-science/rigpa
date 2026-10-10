@@ -3,7 +3,7 @@
 # framebuffer instead of a screen, and open a viewer on the Mac to use it from here.
 #
 #   mise run vip-vnc                 close the viewer (or Ctrl-C) to stop it, on vip too
-#   mise run vip-vnc -- --scale 1    full size, 1920×480 (the default fits the Mac's screen)
+#   mise run vip-vnc -- --scale 1    full size, 1920×480 points (the default fits the Mac's screen)
 #
 # rigpa runs as vip's rigpa.service would (its user, the engine token through LoadCredential, core 0,
 # nice, idle IO), as a transient unit, rigpa-vnc, with Qt's vnc platform and software rendering. It is
@@ -11,9 +11,14 @@
 #
 # Qt's VNC server has no password and no listen address, so the unit is fenced to localhost
 # (IPAddressAllow=localhost): nothing on the LAN can reach it, and the Mac reaches it through an ssh
-# tunnel. The viewer is TigerVNC (brew install --cask tigervnc); macOS Screen Sharing insists on a
-# password and won't connect. Between the two is dev/vnc-relay.py, which sends Qt's server the
-# SetPixelFormat it crashes without (Qt 6.10 has no default format, and TigerVNC sends none). The session holds vip's lock (pedal.project scripts/host-lock), since
+# tunnel. The viewer is macOS's own Screen Sharing: Retina-aware, and it scales the session to its
+# window, so rigpa renders at the screen's real pixel density (2804×700 on a 2× screen at the default
+# scale) and nothing is stretched. Between the viewer and the server is dev/vnc-relay.py: it offers
+# Screen Sharing the password authentication it insists on (any password; this script passes one in
+# the URL, so nothing is asked) and Qt's server the SetPixelFormat it crashes without (Qt 6.10 has no
+# default format). Close the Screen Sharing window and the session ends a few seconds later.
+# (Not TigerVNC: it isn't Retina-aware, so everything it draws is stretched. Not RealVNC's viewer: it
+# won't connect without a RealVNC account.) The session holds vip's lock (pedal.project scripts/host-lock), since
 # software rendering on core 0 is load a measurement would see.
 set -euo pipefail
 
@@ -37,16 +42,19 @@ LOCK=$ROOT/../pedal.project/scripts/host-lock
 [[ -x $LOCK ]] || die "no $LOCK (pedal.project beside rigpa)"
 [[ ${PEDAL_HOST_LOCK:-} == "$HOST" ]] || exec "$LOCK" --host "$HOST" -- "$0" "${ARGS[@]}"
 
-VIEWER=/Applications/TigerVNC.app/Contents/MacOS/vncviewer
-[[ -x $VIEWER ]] || die "no TigerVNC viewer: brew install --cask tigervnc"
 if [[ -z $SCALE ]]; then
   # The width of the Mac's screen in points, less a margin: the viewer draws a pixel per point.
   screen=$(osascript -l JavaScript -e 'ObjC.import("AppKit"); $.NSScreen.mainScreen.visibleFrame.size.width' 2>/dev/null || echo 1920)
   SCALE=$(awk -v w="$screen" 'BEGIN { s = (w - 40) / 1920; if (s > 1) s = 1; printf "%.2f", s }')
 fi
 [[ $SCALE =~ ^(0\.[0-9]+|1(\.0+)?)$ ]] || die "--scale is between 0 and 1, not $SCALE"
-W=$(awk -v s="$SCALE" 'BEGIN { printf "%d", 1920 * s + 0.5 }')
-H=$(awk -v s="$SCALE" 'BEGIN { printf "%d", 480 * s + 0.5 }')
+# The window in points, and the framebuffer in the screen's pixels (2 per point on a Retina screen):
+# rigpa draws at the pixel size, so nothing is stretched on the way to the screen.
+DENSITY=$(osascript -l JavaScript -e 'ObjC.import("AppKit"); $.NSScreen.mainScreen.backingScaleFactor' 2>/dev/null || echo 1)
+WIN_W=$(awk -v s="$SCALE" 'BEGIN { printf "%d", 1920 * s + 0.5 }')
+WIN_H=$(awk -v s="$SCALE" 'BEGIN { printf "%d", 480 * s + 0.5 }')
+W=$((WIN_W * DENSITY)); H=$((WIN_H * DENSITY))
+RENDER_SCALE=$(awk -v s="$SCALE" -v d="$DENSITY" 'BEGIN { printf "%.4f", s * d }')
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST")
 REMOTE_PORT=5900
 free_port() { local p=$1; while nc -z 127.0.0.1 "$p" 2>/dev/null; do p=$((p + 1)); done; echo "$p"; }
@@ -63,8 +71,8 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-log "starting rigpa on $HOST (${W}x${H}, VNC on its localhost:$REMOTE_PORT)"
-"${SSH[@]}" bash -s -- "$SCALE" "$W" "$H" "$REMOTE_PORT" <<'EOF'
+log "starting rigpa on $HOST (${W}x${H} pixels for a ${WIN_W}x${WIN_H} window, VNC on its localhost:$REMOTE_PORT)"
+"${SSH[@]}" bash -s -- "$RENDER_SCALE" "$W" "$H" "$REMOTE_PORT" <<'EOF'
 set -euo pipefail
 scale=$1 w=$2 h=$3 port=$4
 sudo systemctl stop rigpa-vnc 2>/dev/null || true
@@ -100,5 +108,8 @@ exec 3< <(python3 "$ROOT/dev/vnc-relay.py" "$PORT" "$TUNNEL_PORT" 2>"${VNC_RELAY
 RELAY=$!
 read -r -t 5 ready <&3 && [[ $ready == ready ]] || die "the relay didn't start: $ready"
 
-log "viewer on localhost:$PORT; close it to stop rigpa on $HOST"
-"$VIEWER" -SecurityTypes=None -Shared=0 -RemoteResize=0 "127.0.0.1::$PORT" || true
+log "Screen Sharing on localhost:$PORT (${WIN_W}x${WIN_H}); close its window to stop rigpa on $HOST"
+# The password is the relay's to accept, whatever it is: this one only stops the prompt.
+open "vnc://:rigpa@127.0.0.1:$PORT"
+# Until the relay exits: it does once no viewer has been connected for a few seconds.
+cat <&3 >/dev/null || true

@@ -45,5 +45,5 @@ description = "Point rigpa at vip over WiFi: write .vip/rigpa.json, fetching the
 run = "dev/use-vip"
 
 [tasks.vip-vnc]
-description = "Run rigpa on vip in VNC and open a viewer here to use it; close the viewer to stop it"
+description = "Run rigpa on vip in VNC and open Screen Sharing here on it; close the window to stop it"
 run = "dev/vip-vnc"
