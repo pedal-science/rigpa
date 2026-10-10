@@ -43,3 +43,7 @@ run = "dev/dev-pedal"
 [tasks.vip]
 description = "Point rigpa at vip over WiFi: write .vip/rigpa.json, fetching the token once (M9)"
 run = "dev/use-vip"
+
+[tasks.vip-vnc]
+description = "Run rigpa on vip in VNC and open a viewer here to use it; close the viewer to stop it"
+run = "dev/vip-vnc"

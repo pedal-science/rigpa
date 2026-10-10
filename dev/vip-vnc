@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# dev/vip-vnc [--host vip] [--scale S] — run rigpa on the pedal itself (vip), drawn into a VNC
+# framebuffer instead of a screen, and open a viewer on the Mac to use it from here.
+#
+#   mise run vip-vnc                 close the viewer (or Ctrl-C) to stop it, on vip too
+#   mise run vip-vnc -- --scale 1    full size, 1920×480 (the default fits the Mac's screen)
+#
+# rigpa runs as vip's rigpa.service would (its user, the engine token through LoadCredential, core 0,
+# nice, idle IO), as a transient unit, rigpa-vnc, with Qt's vnc platform and software rendering. It is
+# the real thing: edits play on the pedal and save into its library.
+#
+# Qt's VNC server has no password and no listen address, so the unit is fenced to localhost
+# (IPAddressAllow=localhost): nothing on the LAN can reach it, and the Mac reaches it through an ssh
+# tunnel. The viewer is TigerVNC (brew install --cask tigervnc); macOS Screen Sharing insists on a
+# password and won't connect. Between the two is dev/vnc-relay.py, which sends Qt's server the
+# SetPixelFormat it crashes without (Qt 6.10 has no default format, and TigerVNC sends none). The session holds vip's lock (pedal.project scripts/host-lock), since
+# software rendering on core 0 is load a measurement would see.
+set -euo pipefail
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+HOST=vip
+SCALE=""
+ARGS=("$@")
+while (($#)); do
+  case $1 in
+    --host) HOST=$2; shift ;;
+    --scale) SCALE=$2; shift ;;
+    -h|--help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) printf 'vip-vnc: unknown argument %s\n' "$1" >&2; exit 2 ;;
+  esac
+  shift
+done
+die() { printf 'vip-vnc: %s\n' "$*" >&2; exit 1; }
+log() { printf 'vip-vnc: %s\n' "$*" >&2; }
+
+LOCK=$ROOT/../pedal.project/scripts/host-lock
+[[ -x $LOCK ]] || die "no $LOCK (pedal.project beside rigpa)"
+[[ ${PEDAL_HOST_LOCK:-} == "$HOST" ]] || exec "$LOCK" --host "$HOST" -- "$0" "${ARGS[@]}"
+
+VIEWER=/Applications/TigerVNC.app/Contents/MacOS/vncviewer
+[[ -x $VIEWER ]] || die "no TigerVNC viewer: brew install --cask tigervnc"
+if [[ -z $SCALE ]]; then
+  # The width of the Mac's screen in points, less a margin: the viewer draws a pixel per point.
+  screen=$(osascript -l JavaScript -e 'ObjC.import("AppKit"); $.NSScreen.mainScreen.visibleFrame.size.width' 2>/dev/null || echo 1920)
+  SCALE=$(awk -v w="$screen" 'BEGIN { s = (w - 40) / 1920; if (s > 1) s = 1; printf "%.2f", s }')
+fi
+[[ $SCALE =~ ^(0\.[0-9]+|1(\.0+)?)$ ]] || die "--scale is between 0 and 1, not $SCALE"
+W=$(awk -v s="$SCALE" 'BEGIN { printf "%d", 1920 * s + 0.5 }')
+H=$(awk -v s="$SCALE" 'BEGIN { printf "%d", 480 * s + 0.5 }')
+SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$HOST")
+REMOTE_PORT=5900
+free_port() { local p=$1; while nc -z 127.0.0.1 "$p" 2>/dev/null; do p=$((p + 1)); done; echo "$p"; }
+TUNNEL_PORT=$(free_port 5901)
+PORT=$(free_port $((TUNNEL_PORT + 1)))
+
+TUNNEL="" RELAY=""
+cleanup() {
+  [[ -n $RELAY ]] && kill "$RELAY" 2>/dev/null || true
+  [[ -n $TUNNEL ]] && kill "$TUNNEL" 2>/dev/null || true
+  "${SSH[@]}" 'sudo systemctl stop rigpa-vnc 2>/dev/null; sudo rm -f /run/rigpa-vnc.json' || true
+  log "stopped rigpa on $HOST"
+}
+trap cleanup EXIT
+trap 'exit 130' INT TERM
+
+log "starting rigpa on $HOST (${W}x${H}, VNC on its localhost:$REMOTE_PORT)"
+"${SSH[@]}" bash -s -- "$SCALE" "$W" "$H" "$REMOTE_PORT" <<'EOF'
+set -euo pipefail
+scale=$1 w=$2 h=$3 port=$4
+sudo systemctl stop rigpa-vnc 2>/dev/null || true
+sudo systemctl reset-failed rigpa-vnc 2>/dev/null || true
+printf '{"settings_file": "/var/lib/rigpa/settings.ini", "display": {"scale": %s}}\n' "$scale" \
+  | sudo tee /run/rigpa-vnc.json >/dev/null
+sudo systemd-run --quiet --unit rigpa-vnc --collect \
+  -p User=rigpa -p Group=rigpa -p StateDirectory=rigpa -p SupplementaryGroups="video render input" \
+  -p LoadCredential=token:/etc/namchain/token \
+  -p CPUAffinity=0 -p Nice=5 -p IOSchedulingClass=idle -p OOMScoreAdjust=500 \
+  -p NoNewPrivileges=yes -p ProtectSystem=strict -p ProtectHome=yes -p PrivateTmp=yes \
+  -p IPAddressDeny=any -p IPAddressAllow=localhost \
+  -E QT_QPA_PLATFORM="vnc:size=${w}x${h}:port=$port" -E QT_QUICK_BACKEND=software \
+  -E QT_IM_MODULE=qtvirtualkeyboard \
+  /opt/rigpa/current/bin/rigpa --config /run/rigpa-vnc.json
+for _ in $(seq 1 40); do
+  ss -ltn "sport = :$port" | grep -q LISTEN && exit 0
+  systemctl is-active -q rigpa-vnc || break
+  sleep 0.25
+done
+echo "rigpa didn't start listening:" >&2
+sudo journalctl -u rigpa-vnc --no-pager -n 20 >&2
+exit 1
+EOF
+
+"${SSH[@]}" -o ExitOnForwardFailure=yes -N -L "$TUNNEL_PORT:127.0.0.1:$REMOTE_PORT" &
+TUNNEL=$!
+for _ in $(seq 1 40); do nc -z 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null && break; sleep 0.25; done
+nc -z 127.0.0.1 "$TUNNEL_PORT" 2>/dev/null || die "the ssh tunnel to $HOST didn't come up"
+# One connection's relay. Not probed with nc: a probe would be the one connection it serves.
+# VNC_RELAY_DEBUG=1 VNC_RELAY_LOG=<file> logs the viewer's input there.
+exec 3< <(python3 "$ROOT/dev/vnc-relay.py" "$PORT" "$TUNNEL_PORT" 2>"${VNC_RELAY_LOG:-/dev/null}")
+RELAY=$!
+read -r -t 5 ready <&3 && [[ $ready == ready ]] || die "the relay didn't start: $ready"
+
+log "viewer on localhost:$PORT; close it to stop rigpa on $HOST"
+"$VIEWER" -SecurityTypes=None -Shared=0 -RemoteResize=0 "127.0.0.1::$PORT" || true

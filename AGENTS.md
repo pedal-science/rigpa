@@ -33,7 +33,10 @@ RIGPA_DEV_PEDALD_PORT=47821 dev/dev-pedal`.
 
 Against the pedal itself (vip, over WiFi): `mise run vip` writes `.vip/rigpa.json` (fetching the
 engine token once over ssh), then `mise run run -- --config .vip/rigpa.json`. Edits there are real:
-they play on the pedal and save into its library.
+they play on the pedal and save into its library. `mise run vip-vnc` runs rigpa on vip itself, in Qt's
+VNC platform, and opens TigerVNC here on it (`brew install --cask tigervnc`; Screen Sharing won't
+connect): fenced to vip's localhost, reached through ssh, behind `dev/vnc-relay.py`, which sends Qt
+6.10's VNC server the pixel format it crashes without. Close the viewer to stop it.
 
 ## Constraints
 
