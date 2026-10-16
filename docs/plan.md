@@ -22,8 +22,19 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
     6.10, `qfbvthandler.cpp`); on the Mac a TERM killed it (143). `QuitOnSignal`, made just after the
     `QGuiApplication` so its handler replaces eglfs's, turns both into `quit()`: exit 0, destructors
     run. `tst_quitonsignal` sends the real app TERM. vip gets it with the next rigpa it is built with.
-  - **Not yet:** a tap tried on rigpa's own controls at 270, the screen's USB draw against the Pi's
-    1.6 A, and a `systemctl stop rigpa` on vip that logs a clean stop.
+  - **Taps land where pressed** on rigpa's own controls at 270 (the owner, on the screen).
+  - **No brightness control in software.** Nothing answers DDC/CI (0x37) on the panel's DDC bus
+    (i2c-14), where its EDID (0x50) does, and its USB is one HID interface, the touch. Stopping the
+    signal with the cable in (fbcon powerdown blank: the CRTC inactive, DPMS Off, still `connected`)
+    leaves a **lit black screen** for minutes; only pulling the HDMI cable darkens it. Presumably the panel
+    sleeps on losing the source's +5 V (HDMI pin 18), which the Pi does not switch (not traced). A screen-off timeout in
+    rigpa would save nothing. Dimming means the panel board's backlight enable or PWM pin, from the
+    Pico (D2) and well above audio, or rigpa darkening its own pixels (no power saved).
+  - **Not yet:** the screen's USB draw, measured with an inline USB meter that passes data (the
+    touch shares the cable), at boot, idle and full brightness. The Pi gives USB 1.6 A only on a
+    supply offering 5 V 5 A (the decided Pi 45 W one); on a 5 V 3 A one, as vip was on for this,
+    it is 600 mA (`usb_max_current_enable=0`). Also a `systemctl stop rigpa` on vip that logs a clean
+    stop.
 - **V2 done (2026-10-10): the D14 gate passes.** `MemoryMax` (256 MB, from V2's 141–143 MB PSS) is
   in pedal.project's drop-in. A root that carries numaemu3's `device.env` is owed (pedal.project plan).
 - **V2: what it measured.** rigpa as its real unit on eglfs on vc4, HDMI forced on at 1920×480 with a
