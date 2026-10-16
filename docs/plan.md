@@ -17,8 +17,13 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
     had connected, and skipped; a screen plugged in later was never seen. pedal.project's
     `80-rigpa-screen.rules` starts rigpa on DRM's hotplug event: an unplug and replug brought it
     back, upright, with no hand on vip.
+  - **SIGTERM is a clean exit (fixed on the Mac, not yet on vip).** Every `systemctl stop rigpa`
+    logged status 1 because eglfs's `QFbVtHandler` catches TERM and INT and calls `_exit(1)` (qtbase
+    6.10, `qfbvthandler.cpp`); on the Mac a TERM killed it (143). `QuitOnSignal`, made just after the
+    `QGuiApplication` so its handler replaces eglfs's, turns both into `quit()`: exit 0, destructors
+    run. `tst_quitonsignal` sends the real app TERM. vip gets it with the next rigpa it is built with.
   - **Not yet:** a tap tried on rigpa's own controls at 270, the screen's USB draw against the Pi's
-    1.6 A, and rigpa exiting 1 on SIGTERM (every stop logs as a failure).
+    1.6 A, and a `systemctl stop rigpa` on vip that logs a clean stop.
 - **V2 done (2026-10-10): the D14 gate passes.** `MemoryMax` (256 MB, from V2's 141–143 MB PSS) is
   in pedal.project's drop-in. A root that carries numaemu3's `device.env` is owed (pedal.project plan).
 - **V2: what it measured.** rigpa as its real unit on eglfs on vc4, HDMI forced on at 1920×480 with a

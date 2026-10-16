@@ -21,6 +21,7 @@ qt_add_qml_module(rigpa_core
         src/app/DemoAnimator.cpp src/app/DemoAnimator.h
         src/app/FocusRing.cpp src/app/FocusRing.h
         src/app/Navigator.cpp src/app/Navigator.h
+        src/app/QuitOnSignal.cpp src/app/QuitOnSignal.h
         src/app/Settings.cpp src/app/Settings.h
         src/engine/EditStream.cpp src/engine/EditStream.h
         src/engine/EngineClient.cpp src/engine/EngineClient.h

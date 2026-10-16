@@ -3,6 +3,7 @@
 #include "app/DemoAnimator.h"
 #include "app/DevInput.h"
 #include "app/Navigator.h"
+#include "app/QuitOnSignal.h"
 #include "app/Settings.h"
 #include "engine/EngineSession.h"
 #include "library/Library.h"
@@ -36,6 +37,9 @@ int main(int argc, char *argv[])
     if (qEnvironmentVariableIsEmpty("QT_IM_MODULE"))
         qputenv("QT_IM_MODULE", "qtvirtualkeyboard");
     QGuiApplication app(argc, argv);
+    // systemd's stop is SIGTERM: quit cleanly (exit 0), not eglfs's _exit(1). After `app`, so it
+    // replaces the handler the platform plugin installed.
+    rigpa::QuitOnSignal quitOnSignal;
     QGuiApplication::setApplicationName(QStringLiteral("rigpa"));
     QGuiApplication::setOrganizationDomain(QStringLiteral("hemsley.cc"));
 

@@ -17,6 +17,10 @@ rigpa_test(tst_flow)
 rigpa_test(tst_rig)
 rigpa_test(tst_schema)
 rigpa_test(tst_edits)
+rigpa_test(tst_quitonsignal)
+# It also runs the app itself, to send it SIGTERM.
+target_compile_definitions(tst_quitonsignal PRIVATE RIGPA_BINARY="$<TARGET_FILE:rigpa>")
+add_dependencies(tst_quitonsignal rigpa)
 
 # Against the real daemon, when namchain is built beside this repo (skipped otherwise).
 set(RIGPA_NAMCHAIN_BUILD "${PROJECT_SOURCE_DIR}/../namchain/build-mac" CACHE PATH
