@@ -30,8 +30,16 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
     sleeps on losing the source's +5 V (HDMI pin 18), which the Pi does not switch (not traced). A screen-off timeout in
     rigpa would save nothing. Dimming means the panel board's backlight enable or PWM pin, from the
     Pico (D2) and well above audio, or rigpa darkening its own pixels (no power saved).
+  - **The panel is Waveshare's 8.8inch Side Monitor or a sibling** (its wiki, the owner's match;
+    theirs has no touch, a kickstand and side brightness buttons, this one none of the three). Their
+    figures: **260 mA dimmest, 500 mA brightest at 5 V**; brightness only by the buttons, so a
+    board with unfitted button pads is the cheapest dimming mod (the Pico "pressing" them, no PWM
+    near the audio); and some hosts need HDMI before the screen's power or it stays black, cured
+    by re-plugging the power — the first suspect if the screen is ever black after a boot. Their
+    `hdmi_timings` lines are for the firmware display driver; KMS takes the mode from the EDID.
   - **Not yet:** the screen's USB draw, measured with an inline USB meter that passes data (the
-    touch shares the cable), at boot, idle and full brightness. The Pi gives USB 1.6 A only on a
+    touch shares the cable), at boot, idle and full brightness, against Waveshare's 500 mA plus the
+    touch controller's declared 64 mA. The Pi gives USB 1.6 A only on a
     supply offering 5 V 5 A (the decided Pi 45 W one); on a 5 V 3 A one, as vip was on for this,
     it is 600 mA (`usb_max_current_enable=0`). Also a `systemctl stop rigpa` on vip that logs a clean
     stop.
