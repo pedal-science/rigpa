@@ -121,7 +121,9 @@ That path is specified now and built after the Mac proxies.
 
 **On the Mac**:
 - `rigpa.json` sets the engine and pedald addresses, the token file, the library roots and a
-  window scale (1920×480 doesn't fit a laptop at 1×).
+  window scale (1920×480 doesn't fit a laptop at 1×): the size the window opens at. It can be
+  resized or made full screen (the green button, e.g. on the pedal's own screen over HDMI), and the
+  UI scales to fit, letterboxed.
 - Trackpad scroll stands in for touch scrolling.
 - **Cmd + trackpad scroll = main rotary.** Pixel deltas are gathered into detents, and Qt reports
   Cmd as `ControlModifier`.
