@@ -4,9 +4,23 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
-- **V2 done (2026-10-10): the D14 gate passes.** Next: V3, when the screen arrives (its EDID mode,
-  `display.rotation`, touch mapping, USB power); and `MemoryMax` for the unit (256 MB, from V2's
-  141–143 MB PSS). A root that carries numaemu3's `device.env` is owed (pedal.project plan).
+- **V3 started (2026-10-16): the screen is on vip.** What it found:
+  - **Mode.** The panel is on HDMI-A-2 (vc4, card1) and its EDID prefers **480×1920**, portrait
+    (also 504×315 and 328×205). eglfs takes the preferred mode, so `kms.json` names no mode.
+  - **Rotation 270.** With the panel landscape as it sits in the pedal, 90 is upside down.
+    pedal.project's `etc/rigpa/rigpa.json` now says 270.
+  - **Touch needs no mapping.** The digitiser (`wch.cn USB2IIC_CTP_CONTROL`, 0–4096 on both axes,
+    through libinput) runs along the native portrait scan: a left→right drag in landscape is raw Y
+    4044→34, top→bottom is raw X 264→3959, and the corner taps agree. Through rotation 270 that is
+    the identity, so QML's transform maps it with no calibration matrix.
+  - **A screen that comes up after boot.** The unit's `ExecCondition` ran at 14 s, before the panel
+    had connected, and skipped; a screen plugged in later was never seen. pedal.project's
+    `80-rigpa-screen.rules` starts rigpa on DRM's hotplug event: an unplug and replug brought it
+    back, upright, with no hand on vip.
+  - **Not yet:** a tap tried on rigpa's own controls at 270, the screen's USB draw against the Pi's
+    1.6 A, and rigpa exiting 1 on SIGTERM (every stop logs as a failure).
+- **V2 done (2026-10-10): the D14 gate passes.** `MemoryMax` (256 MB, from V2's 141–143 MB PSS) is
+  in pedal.project's drop-in. A root that carries numaemu3's `device.env` is owed (pedal.project plan).
 - **V2: what it measured.** rigpa as its real unit on eglfs on vc4, HDMI forced on at 1920×480 with a
   generated EDID (no screen yet), beside a 0.553 rig with pedald's warm document; five ten-minute arms
   — off, idle, live meters, `--demo-animate`, off again — each 0 xruns, 0 overruns, worst block ≤ 58%.
