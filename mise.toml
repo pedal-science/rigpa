@@ -40,6 +40,10 @@ run = "build/mac-debug/rigpa.app/Contents/MacOS/rigpa"
 description = "Run namchaind and pedald locally under .dev/ (the dev loop)"
 run = "dev/dev-pedal"
 
+[tasks.blackhole]
+description = "The dev loop with namchaind capturing macOS's BlackHole device instead of silence (then, in another terminal: mise run run -- --config .dev/rigpa-blackhole.json)"
+run = "RIGPA_DEV_PROFILE=blackhole dev/dev-pedal"
+
 [tasks.vip]
 description = "Point rigpa at vip over WiFi: write .vip/rigpa.json, fetching the token once (M9)"
 run = "dev/use-vip"

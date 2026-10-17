@@ -21,6 +21,16 @@
 # The null backend has no input, so the meters stay flat. RIGPA_DEV_INPUT=<a 48 kHz WAV> switches
 # to the coreaudio backend, which loops that file as the input and plays the rig through the
 # Mac's default output: the meters move, and you hear it.
+#
+# RIGPA_DEV_PROFILE=blackhole switches to the coreaudio backend with a *live* input instead: macOS's
+# BlackHole loopback device (RIGPA_DEV_INPUT_DEVICE, default BlackHole2ch_UID), so anything played
+# into BlackHole — the system output, a player, another app — comes out of the rig. It is
+# `mise run blackhole`, and it uses its own pair of configs, .dev/namchaind-blackhole.json and
+# .dev/rigpa-blackhole.json. They are written once from the same skeleton as the default pair and
+# then left alone, so an edited device UID (or an added output `device`) survives a restart; delete
+# them to regenerate. RIGPA_DEV_INPUT_DEVICE seeds the first version of that file and is ignored
+# after it exists. The two profiles share one dev dir, token, library and set of ports, so run one
+# at a time.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -35,6 +45,35 @@ PEDALD_PORT=${RIGPA_DEV_PEDALD_PORT:-47820}
 die() { printf 'dev-pedal: %s\n' "$*" >&2; exit 1; }
 [[ -x $NAMCHAIND ]] || die "no $NAMCHAIND: build it with 'cmake --build build-mac --target namchaind' in $NAMCHAIN"
 [[ -d $PEDALD_LIB/pedald ]] || die "no pedald in $PEDALD_LIB"
+
+# Which pair of configs this run uses. The default pair is generated every run, because
+# RIGPA_DEV_INPUT changes what it says; a profile's pair is only written when it is missing, because
+# the point of a profile is that its device settings can be edited.
+PROFILE=${RIGPA_DEV_PROFILE:-}
+case $PROFILE in
+  "" | blackhole) ;;
+  *) die "unknown RIGPA_DEV_PROFILE '$PROFILE' (leave it empty, or use blackhole)" ;;
+esac
+[[ -z $PROFILE || -z ${RIGPA_DEV_INPUT:-} ]] || die "RIGPA_DEV_INPUT (a WAV) and RIGPA_DEV_PROFILE=$PROFILE both choose the capture: use one"
+SUFFIX=
+if [[ $PROFILE == blackhole ]]; then SUFFIX=-blackhole; fi
+NAMCHAIND_CONFIG=$DEV/namchaind$SUFFIX.json
+RIGPA_CONFIG=$DEV/rigpa$SUFFIX.json
+NAMCHAIND_LOG=$DEV/logs/namchaind$SUFFIX.log
+PEDALD_LOG=$DEV/logs/pedald$SUFFIX.log
+
+# A profile's config is authoritative, and this script will not rewrite it: if it already exists and
+# names another tcp_port (an earlier run under other env overrides), that is the port to check and
+# to report, not the one this run would have generated. pedald's own config is written every run,
+# and pedald finds the engine through this file, so the two still agree.
+if [[ -n $PROFILE && -e $NAMCHAIND_CONFIG ]]; then
+  CONFIG_PORT=$(sed -n 's/.*"tcp_port"[[:space:]]*:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$NAMCHAIND_CONFIG" | head -1)
+  if [[ -n $CONFIG_PORT && $CONFIG_PORT != "$ENGINE_PORT" ]]; then
+    printf 'dev-pedal: %s names tcp_port %s; using it (delete the file to regenerate at %s).\n' \
+      "$NAMCHAIND_CONFIG" "$CONFIG_PORT" "$ENGINE_PORT" >&2
+    ENGINE_PORT=$CONFIG_PORT
+  fi
+fi
 
 for port in "$ENGINE_PORT" "$PEDALD_PORT"; do
   if nc -z 127.0.0.1 "$port" 2>/dev/null; then
@@ -68,7 +107,13 @@ if [[ ! -s $DEV/token ]]; then
   (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > "$DEV/token")
 fi
 
-if [[ -n ${RIGPA_DEV_INPUT:-} ]]; then
+if [[ $PROFILE == blackhole ]]; then
+  # A live input, so there is no --capture-path here: the coreaudio backend refuses both.
+  # coreaudio's period is a ceiling — the device's own callback is measured and used — but it must
+  # be at least that callback, and a Mac's output device delivers 512-frame ones, which a plan
+  # built for 64 refuses with "restart with --period-size 512".
+  BACKEND='"backend": "coreaudio", "input_device": "'"${RIGPA_DEV_INPUT_DEVICE:-BlackHole2ch_UID}"'", "period_size": 1024,'
+elif [[ -n ${RIGPA_DEV_INPUT:-} ]]; then
   [[ -f $RIGPA_DEV_INPUT ]] || die "no such WAV: $RIGPA_DEV_INPUT"
   # coreaudio's period is a ceiling: the device's own period is measured and used.
   BACKEND='"backend": "coreaudio", "capture_path": "'"$RIGPA_DEV_INPUT"'", "period_size": 1024,'
@@ -76,7 +121,8 @@ else
   BACKEND='"backend": "null", "period_size": 64,'
 fi
 
-cat > "$DEV/namchaind.json" <<JSON
+if [[ -z $PROFILE || ! -e $NAMCHAIND_CONFIG ]]; then
+cat > "$NAMCHAIND_CONFIG" <<JSON
 {
   $BACKEND
   "sample_rate": 48000,
@@ -95,6 +141,7 @@ cat > "$DEV/namchaind.json" <<JSON
   "tcp_token_file": "$DEV/token"
 }
 JSON
+fi
 cat > "$DEV/pedald.json" <<JSON
 {
   "uart_device": "$DEV/no-pico",
@@ -103,9 +150,9 @@ cat > "$DEV/pedald.json" <<JSON
   "state_root": "$DEV/state"
 }
 JSON
-[[ -e $DEV/rigpa.json ]] || cat > "$DEV/rigpa.json" <<JSON
+[[ -e $RIGPA_CONFIG ]] || cat > "$RIGPA_CONFIG" <<JSON
 {
-  "engine_config": "$DEV/namchaind.json",
+  "engine_config": "$NAMCHAIND_CONFIG",
   "pedald_config": "$DEV/pedald.json",
   "settings_file": "$DEV/settings.ini"
 }
@@ -116,14 +163,17 @@ stop() { for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done; wait
 trap stop EXIT INT TERM
 
 # The socket path is relative: macOS caps Unix socket paths at 104 bytes.
-(cd "$DEV" && exec "$NAMCHAIND" --config "$DEV/namchaind.json") > "$DEV/logs/namchaind.log" 2>&1 &
+(cd "$DEV" && exec "$NAMCHAIND" --config "$NAMCHAIND_CONFIG") > "$NAMCHAIND_LOG" 2>&1 &
 pids+=($!)
 PEDALD_LIB=$PEDALD_LIB python3 "$PEDAL_ROOTFS/usr/local/sbin/pedald" run --config "$DEV/pedald.json" \
-  --engine-config "$DEV/namchaind.json" > "$DEV/logs/pedald.log" 2>&1 &
+  --engine-config "$NAMCHAIND_CONFIG" > "$PEDALD_LOG" 2>&1 &
 pids+=($!)
 
 printf 'namchaind on 127.0.0.1:%s, pedald on 127.0.0.1:%s; logs in %s/logs. Ctrl-C stops both.\n' \
   "$ENGINE_PORT" "$PEDALD_PORT" "$DEV"
-printf 'rigpa: mise run run -- --config %s/rigpa.json\n' "$DEV"
+printf 'rigpa: mise run run -- --config %s\n' "$RIGPA_CONFIG"
+if [[ -n $PROFILE ]]; then
+  printf 'profile %s: %s is kept as it is (delete it to regenerate)\n' "$PROFILE" "$NAMCHAIND_CONFIG"
+fi
 wait -n "${pids[@]}" || true
 die "a back-end process stopped; see $DEV/logs/"

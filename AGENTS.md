@@ -20,7 +20,19 @@ mise run build          # cmake --preset mac-debug && cmake --build --preset mac
 mise run test           # ctest --preset mac-debug
 mise run dev            # namchaind (../namchain/build-mac) and pedald (../pedal.project) under .dev/
 mise run run -- --config .dev/rigpa.json
+mise run blackhole      # the same loop, with namchaind capturing macOS's BlackHole device
+mise run run -- --config .dev/rigpa-blackhole.json
 ```
+
+The dev loop's engine backend is `null`, which has no input: the meters stay flat and the rig is
+silent. `RIGPA_DEV_INPUT=<48 kHz WAV>` switches it to CoreAudio looping that file, and `mise run
+blackhole` switches it to CoreAudio capturing a live device — BlackHole (`BlackHole2ch_UID`) unless
+`RIGPA_DEV_INPUT_DEVICE` says otherwise — so anything played into BlackHole comes out of the rig
+through the Mac's default output. Both live modes use their own configs beside the defaults
+(`.dev/namchaind-blackhole.json`, `.dev/rigpa-blackhole.json`), written once and then left alone so
+the device UIDs (and an added `"device"` for the output) can be edited in them; delete them to
+regenerate. The profiles share `.dev/` and its ports, so run one at a time. The first live-input
+run asks the terminal for Microphone permission: a refusal is silence, not an error.
 
 On the Mac, `.` is apply, `,` is back, ⌘ + trackpad scroll is the main rotary, and ⌘Z / ⇧⌘Z
 undo and redo. Names are typed on Qt Virtual Keyboard, on the Mac too.
