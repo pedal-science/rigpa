@@ -14,6 +14,7 @@ rigpa_test(tst_engineclient)
 rigpa_test(tst_enginesession)
 rigpa_test(tst_library)
 rigpa_test(tst_flow)
+rigpa_test(tst_floweq)
 rigpa_test(tst_rig)
 rigpa_test(tst_schema)
 rigpa_test(tst_edits)
@@ -30,7 +31,8 @@ rigpa_test(tst_rig_live)
 rigpa_test(tst_edit_live)
 rigpa_test(tst_manage_live)
 rigpa_test(tst_demo_live)
+rigpa_test(tst_floweq_live)
 set(RIGPA_PEDAL_ROOTFS "${PROJECT_SOURCE_DIR}/../pedal.project/devices/common/rootfs" CACHE PATH
     "pedal.project's Core host tree, whose pedald the rig-management tests run")
-set_tests_properties(tst_engine_live tst_rig_live tst_edit_live tst_manage_live tst_demo_live PROPERTIES ENVIRONMENT
+set_tests_properties(tst_engine_live tst_rig_live tst_edit_live tst_manage_live tst_demo_live tst_floweq_live PROPERTIES ENVIRONMENT
     "RIGPA_NAMCHAIND=${RIGPA_NAMCHAIN_BUILD}/namchaind;RIGPA_NAMCHAIN_MODELS=${RIGPA_NAMCHAIN_BUILD}/generated;RIGPA_PEDAL_ROOTFS=${RIGPA_PEDAL_ROOTFS}")

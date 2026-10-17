@@ -19,6 +19,18 @@ NodeEditorModel::NodeEditorModel(RigSession *session, EngineSession *engine, Rig
                                  Library *library, QObject *parent)
     : QAbstractListModel(parent), m_session(session), m_engine(engine), m_editor(editor), m_library(library)
 {
+    m_flow = new FlowEqModel(this);
+    if (m_engine)
+        m_flow->setClient(m_engine->client());
+    m_reread.setSingleShot(true);
+    connect(&m_reread, &QTimer::timeout, this, [this] {
+        if (!isOpen())
+            return;
+        readValues(true);
+        if (!m_controls.isEmpty())
+            emit dataChanged(index(0), index(int(m_controls.size()) - 1));
+        emit changed();
+    });
     connect(m_session, &RigSession::documentChanged, this, [this] {
         if (!isOpen())
             return;
@@ -29,6 +41,9 @@ NodeEditorModel::NodeEditorModel(RigSession *session, EngineSession *engine, Rig
             return;
         }
         readValues(true);
+        scheduleReread();
+        if (m_isFlowEq && m_flow)
+            m_flow->noteEdit(); // someone else moved the block: the curve they hear is an answer
         if (!m_controls.isEmpty())
             emit dataChanged(index(0), index(int(m_controls.size()) - 1));
         emit changed();
@@ -102,11 +117,15 @@ void NodeEditorModel::close()
     if (m_lastEdited >= 0)
         release(m_lastEdited);
     m_ring.setEditing(false);
+    m_reread.stop();
+    if (m_flow)
+        m_flow->watch(QString());
     beginResetModel();
     m_element.clear();
     m_chain.clear();
     m_controls.clear();
     m_shape.clear();
+    m_isFlowEq = false;
     m_lastEdited = -1;
     endResetModel();
     updateRing();
@@ -130,6 +149,12 @@ void NodeEditorModel::rebuild()
         return;
     }
     m_shape = shapeOf(*e);
+    // The one block that gets its own panel: nc.eq.flow is a single node, and the engine reports
+    // what it derived (FlowEqModel). A lane or a section never is.
+    m_isFlowEq = e->kind == RigElement::Block && e->nodes.size() == 1
+                 && e->nodes.first().type == QLatin1String("nc.eq.flow");
+    if (m_flow)
+        m_flow->watch(m_isFlowEq ? m_element : QString());
     if (const auto *item = m_editor ? m_editor->itemFor(m_element) : nullptr) {
         m_title = item->title;
         m_subtitle = item->subtitle;
@@ -366,6 +391,23 @@ void NodeEditorModel::readValue(Control &c, bool keepHeld) const
     }
 }
 
+void NodeEditorModel::scheduleReread()
+{
+    // A control that was moved here keeps its own value for kHoldMs, so it does not jump back to an
+    // older reading while a knob is being dragged. The catch: a document change that lands inside
+    // that window is skipped for that control, and the document then stops changing -- so an edit
+    // made somewhere else (a footswitch, ljoss, another client) would stay invisible on it until the
+    // next change anywhere. One delayed read closes that, and also picks up a value the engine
+    // clamped or rounded on its way through a patch.
+    qint64 remaining = 0;
+    for (const Control &c : m_controls) {
+        if (c.held.isValid() && c.held.elapsed() < kHoldMs)
+            remaining = std::max(remaining, qint64(kHoldMs) - c.held.elapsed());
+    }
+    if (remaining > 0)
+        m_reread.start(int(remaining) + 50);
+}
+
 void NodeEditorModel::updateRing()
 {
     QStringList kinds;
@@ -523,13 +565,17 @@ void NodeEditorModel::send(int index)
     }
     c.dirty = false;
     c.held.start();
+    if (m_isFlowEq && m_flow)
+        m_flow->noteEdit(); // the engine's answer to this edit is what the curve draws
     QJsonValue value;
     switch (c.spec.kind) {
     case ParamSpec::Number:
         value = c.value;
         break;
     case ParamSpec::Flag:
-        value = c.value != 0;
+        // A patch takes a number or a string, never a boolean (namchain graph/patch.cpp): a flag is
+        // 0 or 1 on the wire, whatever a document may spell it as.
+        value = c.value != 0 ? 1 : 0;
         break;
     case ParamSpec::Option:
         value = c.spec.optionsFrom.isEmpty() ? QJsonValue(c.spec.options.value(int(c.value)).value) : QJsonValue(c.ref);
@@ -543,6 +589,14 @@ void NodeEditorModel::send(int index)
 QString NodeEditorModel::paramAt(int index) const
 {
     return index >= 0 && index < m_controls.size() ? m_controls.at(index).spec.id : QString();
+}
+
+int NodeEditorModel::indexOfParam(const QString &param) const
+{
+    for (int i = 0; i < m_controls.size(); ++i)
+        if (m_controls.at(i).spec.id == param)
+            return i;
+    return -1;
 }
 
 double NodeEditorModel::valueAt(int index) const
@@ -638,6 +692,8 @@ QVariant NodeEditorModel::data(const QModelIndex &index, int role) const
         return int(c.value);
     case StreamingRole:
         return streams(c);
+    case ParamRole:
+        return c.spec.id;
     }
     return {};
 }
@@ -647,7 +703,7 @@ QHash<int, QByteArray> NodeEditorModel::roleNames() const
     return {
         {KindRole, "kind"}, {LabelRole, "label"}, {GroupRole, "group"}, {PositionRole, "position"},
         {TextRole, "valueText"}, {OptionsRole, "options"}, {CurrentRole, "current"},
-        {StreamingRole, "streaming"}, {FirstOfGroupRole, "firstOfGroup"},
+        {StreamingRole, "streaming"}, {FirstOfGroupRole, "firstOfGroup"}, {ParamRole, "param"},
     };
 }
 

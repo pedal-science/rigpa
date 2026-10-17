@@ -1,0 +1,43 @@
+{
+  "name": "Flow",
+  "chains": [
+    {
+      "id": "C9E7D1B2-1000-4000-8000-000000000004",
+      "name": "Guitar",
+      "input_channel": 0,
+      "output_channel": 0,
+      "nodes": [
+        {
+          "id": "in",
+          "type": "nc.input"
+        },
+        {
+          "id": "flow",
+          "type": "nc.eq.flow",
+          "x": 0,
+          "y": 0,
+          "z": 0,
+          "strength": 1
+        },
+        {
+          "id": "out",
+          "type": "nc.output"
+        }
+      ],
+      "connections": [
+        {
+          "from": "in",
+          "from_port": 0,
+          "to": "flow",
+          "to_port": 0
+        },
+        {
+          "from": "flow",
+          "from_port": 0,
+          "to": "out",
+          "to_port": 0
+        }
+      ]
+    }
+  ]
+}

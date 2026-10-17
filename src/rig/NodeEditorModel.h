@@ -1,11 +1,13 @@
 #pragma once
 
+#include "FlowEqModel.h"
 #include "RigDocument.h"
 #include "app/FocusRing.h"
 #include "engine/Schema.h"
 
 #include <QAbstractListModel>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <QtQml/qqmlregistration.h>
 
 namespace rigpa {
@@ -40,6 +42,11 @@ class NodeEditorModel : public QAbstractListModel
     Q_PROPERTY(int closeIndex READ closeIndex NOTIFY changed)
     Q_PROPERTY(int removeIndex READ removeIndex NOTIFY changed)
     Q_PROPERTY(QString note READ note NOTIFY changed)
+    // Whether the block being edited is flowEQ's: its own panel (FlowEqPanel.qml) replaces the
+    // generic control list, because the engine publishes the response curve it draws and the eight
+    // controls fit a much better layout than one row of knobs.
+    Q_PROPERTY(bool isFlowEq READ isFlowEq NOTIFY changed)
+    Q_PROPERTY(rigpa::FlowEqModel *flowEq READ flowEq CONSTANT)
     Q_PROPERTY(rigpa::FocusRing *ring READ ring CONSTANT)
 
 public:
@@ -52,7 +59,7 @@ public:
 
     enum Role {
         KindRole = Qt::UserRole + 1, LabelRole, GroupRole, PositionRole, TextRole, OptionsRole,
-        CurrentRole, StreamingRole, FirstOfGroupRole,
+        CurrentRole, StreamingRole, FirstOfGroupRole, ParamRole,
     };
 
     NodeEditorModel(RigSession *session, EngineSession *engine, RigEditorModel *editor, Library *library,
@@ -68,6 +75,8 @@ public:
     int closeIndex() const { return int(m_controls.size()) + (m_bypassable ? 1 : 0); }
     int removeIndex() const { return closeIndex() + 1; }
     QString note() const { return m_note; }
+    bool isFlowEq() const { return m_isFlowEq; }
+    FlowEqModel *flowEq() const { return m_flow; }
     FocusRing *ring() { return &m_ring; }
 
     // Opens the editor on a block or section (by element), or closes it.
@@ -95,6 +104,9 @@ public:
     // For tests and the shell: a control's parameter, and its value as the editor holds it.
     QString paramAt(int index) const;
     double valueAt(int index) const;
+    // A control's place in reading order, for a panel that arranges them by parameter rather than
+    // by list position; -1 when the block has no such control.
+    Q_INVOKABLE int indexOfParam(const QString &param) const;
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;
@@ -140,6 +152,9 @@ private:
     // What the controls are built from: when a re-read changes it, they are built again.
     static QStringList shapeOf(const RigElement &e);
     void updateRing();
+    // A read that skipped a control still holding its own value (see \ref kHoldMs) is repeated once
+    // the hold has expired, so an edit made elsewhere is not invisible until the next one.
+    void scheduleReread();
     void touch(int index);
     void send(int index);
     void setValue(int index, double value);
@@ -155,6 +170,9 @@ private:
     QString m_chain;
     QString m_title, m_subtitle, m_note;
     bool m_bypassable = false;
+    bool m_isFlowEq = false;
+    FlowEqModel *m_flow = nullptr;
+    QTimer m_reread;
     QList<Control> m_controls;
     QStringList m_shape;   // node ids and types: whether a re-read changed what the editor shows
     int m_lastEdited = -1;

@@ -4,6 +4,16 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
+- **flowEQ's lite panel (2026-10-17).** namchain grew `nc.eq.flow` — flowEQ's decoder and five band
+  EQ, with the model table generated from the trained `.mat` — and a `rig.state` method that
+  publishes what a node has derived. rigpa shows a block of that type with flowEQ's own layout
+  (`qml/views/FlowEqPanel.qml`, docs/floweq.md): X, Y, Z, Strength, In, Out, Extend and Auto Gain as
+  rigpa controls, and the response curve *the engine computed* beside them, which it reads from
+  `rig.state` while the panel is open and stops reading when it is idle. `tst_floweq` covers the
+  model without a window; `tst_floweq_live` drives a real namchaind through a latent move and
+  checks the curve changes with it. Found on the way and fixed: a flag parameter sent in a patch was
+  a JSON boolean, which namchain's patch ops refuse — flowEQ's toggles were the first ones to go
+  through `rig.patch` rather than a whole-document apply.
 - **V3 started (2026-10-16): the screen is on vip.** What it found:
   - **Mode.** The panel is on HDMI-A-2 (vc4, card1) and its EDID prefers **480×1920**, portrait
     (also 504×315 and 328×205). eglfs takes the preferred mode, so `kms.json` names no mode.

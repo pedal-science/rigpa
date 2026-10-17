@@ -49,7 +49,13 @@ Item {
             // Overlays, over whichever view opened them.
             NodeEditor {
                 anchors.fill: parent
-                visible: App.nodeEditor.isOpen
+                visible: App.nodeEditor.isOpen && !App.nodeEditor.isFlowEq
+            }
+            // flowEQ's block has its own layout: its controls and the response curve the engine
+            // computed for it (FlowEqPanel.qml, FlowEqModel).
+            FlowEqPanel {
+                anchors.fill: parent
+                visible: App.nodeEditor.isOpen && App.nodeEditor.isFlowEq
             }
             Picker {
                 anchors.fill: parent

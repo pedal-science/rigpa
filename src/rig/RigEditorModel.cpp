@@ -32,7 +32,8 @@ QString colorFor(const QString &type)
     if (isCab(type))
         return QStringLiteral("#80b0d0");
     if (type.startsWith(QLatin1String("fx.eq")) || type == QLatin1String("nc.eq.biquad")
-        || type == QLatin1String("fx.filter.cut") || type == QLatin1String("fx.amp.tonestack"))
+        || type == QLatin1String("nc.eq.flow") || type == QLatin1String("fx.filter.cut")
+        || type == QLatin1String("fx.amp.tonestack"))
         return QStringLiteral("#7cc47c");
     if (type.contains(QLatin1String("delay")) || type == QLatin1String("fx.mix.drywet"))
         return QStringLiteral("#b08be0");
@@ -45,7 +46,8 @@ QString RigEditorModel::typeLabel(const QString &type)
 {
     static const QHash<QString, QString> labels = {
         {"nc.nam", "Amp"}, {"nc.cab.ir", "Cab IR"}, {"fx.cab.ir", "Cab IR"}, {"nc.gain", "Gain"},
-        {"nc.eq.biquad", "Biquad EQ"}, {"nc.delay", "Delay line"}, {"fx.eq.bands", "EQ"},
+        {"nc.eq.biquad", "Biquad EQ"}, {"nc.eq.flow", "flowEQ"}, {"nc.delay", "Delay line"},
+        {"fx.eq.bands", "EQ"},
         {"fx.eq.tilt", "Tilt EQ"}, {"fx.filter.cut", "Cut filter"}, {"fx.mix.drywet", "Dry/wet"},
         {"fx.delay.feedback", "Delay"}, {"fx.amp.tonestack", "Tone stack"}, {"nc.split", "Split"},
         {"nc.mix", "Mix"},

@@ -84,7 +84,10 @@ screen arrives.
   segmented choices for small option sets.
 - A **model/IR picker** shows a library list with metadata. It is rotary‑friendly and commits on
   apply or tap.
-- All of it is built generically from `engine.schema`.
+- A **flowEQ block** (`nc.eq.flow`) gets its own layout rather than the generic list: its eight lite
+  controls, and the response curve the engine computed for it (`rig.state`). See
+  [floweq.md](floweq.md).
+- Everything else is built generically from `engine.schema`.
 - Knobs on parameters the engine ramps stream `rig.patch set_param` at most every 10 ms, with one
   patch in flight and the last value always sent. Other parameters commit on release.
 

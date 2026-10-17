@@ -52,54 +52,13 @@ Rectangle {
     onWidthChanged: Qt.callLater(relayout)
     onHeightChanged: Qt.callLater(relayout)
 
-    // [Remove] … [Bypass][Close]
-    Item {
+    // [Remove] … [Bypass][Close], shared with flowEQ's own panel.
+    NodeTitleRow {
         id: titleRow
         x: 24; y: 10
         width: parent.width - 48
-        height: 48
-
-        HeaderButton {
-            anchors.verticalCenter: parent.verticalCenter
-            label: qsTr("Remove")
-            highlighted: editor.active && editor.ring.highlight === editor.model.removeIndex
-            onClicked: editor.model.removeElement()
-        }
-        Text {
-            anchors.centerIn: parent
-            width: parent.width - 520
-            horizontalAlignment: Text.AlignHCenter
-            elide: Text.ElideRight
-            text: editor.model.subtitle
-            color: Theme.dim
-            font.pixelSize: Theme.fontNormal
-        }
-        Row {
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 14
-            Text {
-                visible: editor.model.bypassable
-                anchors.verticalCenter: parent.verticalCenter
-                text: editor.model.bypassed ? qsTr("Bypassed") : qsTr("Active")
-                color: editor.model.bypassed ? Theme.dim : Theme.text
-                font.pixelSize: Theme.fontNormal
-            }
-            Toggle { // on = the block is in the signal path
-                visible: editor.model.bypassable
-                anchors.verticalCenter: parent.verticalCenter
-                checked: !editor.model.bypassed
-                highlighted: editor.active && editor.ring.highlight === editor.model.bypassIndex
-                onToggled: { editor.ring.highlight = editor.model.bypassIndex; editor.model.toggleBypass() }
-            }
-            Item { width: 10; height: 1 }
-            HeaderButton {
-                anchors.verticalCenter: parent.verticalCenter
-                label: qsTr("Close")
-                highlighted: editor.active && editor.ring.highlight === editor.model.closeIndex
-                onClicked: App.closeNodeEditor()
-            }
-        }
+        model: editor.model
+        active: editor.active
     }
 
     Item {
