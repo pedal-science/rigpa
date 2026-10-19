@@ -231,7 +231,7 @@ What exploration established, and what it changes:
 
 ## How it is built
 
-**Repo** `rigpa/` (private `github.com/rikkus/rigpa`, ssh remote like ljoss):
+**Repo** `rigpa/` (private `github.com/pedal-science/rigpa`, ssh remote like ljoss):
 ```
 AGENTS.md  CLAUDE.md(@AGENTS.md)  README.md  .gitignore(/build/ /.qt/ /.dev/)  mise.toml
 CMakeLists.txt  CMakePresets.json            # mac-debug, mac-release, linux-release (container)

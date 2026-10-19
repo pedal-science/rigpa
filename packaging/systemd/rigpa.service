@@ -1,6 +1,6 @@
 [Unit]
 Description=rigpa, the pedal's UI
-Documentation=https://github.com/rikkus/rigpa
+Documentation=https://github.com/pedal-science/rigpa
 # A client of namchaind and pedald: it waits for neither (it reconnects), but starting after them
 # saves it a round of retries at boot.
 After=namchaind.service pedald.service
