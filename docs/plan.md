@@ -4,6 +4,18 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
+- **The tuner (2026-10-20).** namchain grew `nc.tuner` — squatch-dsp's tuner as a node whose output is
+  silence — and a schema flag, `flags.in_palette: false`, that says a type is not a block. rigpa
+  turns that into the pedal's tuner: a **main view** from the menu button directly above Settings,
+  which mounts one tuner node after each chain's input for as long as it is up (so the rig is muted)
+  and removes it on back. The node is theirs, not the rig's: `RigSession` injects it into what it
+  publishes and strips it from everything it reads back, so it is never drawn, never in the undo
+  history and never in the library; pedald's resume record learned the same strip, because a saved
+  view node would boot the pedal muted. The view is the note, a ±50-cent needle with a ±5-cent
+  in-tune band, the frequency and an input level, from `rig.state` — plus the one line that matters
+  when a mount is refused: "The rig is not muted". `docs/tuner.md` is the design;
+  `tests/tst_tuner.cpp`, `tst_tuner_live.cpp`, `tst_edits.cpp` and `tst_navigator.cpp` are the tests,
+  and `docs/screenshots/tuner.png` is the view.
 - **flowEQ's lite panel (2026-10-17).** namchain grew `nc.eq.flow` — flowEQ's decoder and five band
   EQ, with the model table generated from the trained `.mat` — and a `rig.state` method that
   publishes what a node has derived. rigpa shows a block of that type with flowEQ's own layout

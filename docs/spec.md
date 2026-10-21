@@ -47,7 +47,9 @@ screen arrives.
   - input and output level meters, polled about 10 Hz and switchable off in settings, so the
     screen can be fully static.
 - A **main view** is anything that fills content: rig view (the default), browse view, settings
-  view.
+  view, and the **tuner view**. A main view may own *engine state* as well as pixels: the tuner is
+  the first, and while it is up the document the engine runs has a tuner node after each chain's
+  input, so the rig is silent (docs/tuner.md).
 
 **Rig view** = `| rig list | rig editor |`.
 - The rig list width is a setting (192–576 px, step 16, default 288), changed only in settings
@@ -116,6 +118,7 @@ editor → node editor):
 | …a control **selected** | change the value (immediately applied) | deselect | deselect |
 | Picker / palette | move through the list | choose and close | close |
 | Browse (nothing deeper) | move up and down the list; the Models/IRs switch is the first stop | on the switch: toggle; on an item: nothing yet | go to rig view |
+| Tuner | nothing: the view has no stops | nothing | go to rig view, which also removes the tuner node and unmutes the rig |
 
 Any touch moves the hardware highlight to what was touched. Footswitches and MIDI keep their
 existing path (Pico → pedald → `rig.load`), and rigpa follows. On the pedal, the rotary, apply and
