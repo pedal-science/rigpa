@@ -22,6 +22,7 @@ Rectangle {
         text: parent.editingNode ? App.nodeEditor.title
             : App.nav.mainView === Navigator.BrowseView ? qsTr("Browse")
             : App.nav.mainView === Navigator.SettingsView ? qsTr("Settings")
+            : App.nav.mainView === Navigator.TunerView ? qsTr("Tuner")
             : qsTr("Rig")
     }
 

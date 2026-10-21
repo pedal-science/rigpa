@@ -85,7 +85,12 @@ void RigManager::saveNow()
             m_session->say(tr("Couldn't save %1: %2").arg(name, reply.message.isEmpty() ? reply.code : reply.message));
             return;
         }
-        put(name, reply.body.value(QStringLiteral("document")).toObject(), [this, name, done](const QString &error) {
+        // The engine's document is what is running, and while a tuner is up that includes the node
+        // rigpa mounted around it. A rig file never holds one: it is a view's node, not the rig's
+        // (namchain docs/tuner.md).
+        QJsonObject document = reply.body.value(QStringLiteral("document")).toObject();
+        edits::stripTuner(document);
+        put(name, document, [this, name, done](const QString &error) {
             if (!error.isEmpty()) {
                 setSaveState(QStringLiteral("failed"));
                 m_session->say(tr("Couldn't save %1: %2").arg(name, error));

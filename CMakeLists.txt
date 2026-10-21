@@ -43,6 +43,7 @@ qt_add_qml_module(rigpa_core
         src/rig/RigList.cpp src/rig/RigList.h
         src/rig/RigManager.cpp src/rig/RigManager.h
         src/rig/RigSession.cpp src/rig/RigSession.h
+        src/rig/TunerModel.cpp src/rig/TunerModel.h
 )
 target_include_directories(rigpa_core PUBLIC src)
 # The generated QML type registrations include each header by its bare name.
@@ -64,6 +65,7 @@ qt_add_qml_module(rigpa
         qml/views/RigView.qml
         qml/views/BrowseView.qml
         qml/views/SettingsView.qml
+        qml/views/TunerView.qml
         qml/views/RigListPanel.qml
         qml/views/RigEditorPanel.qml
         qml/views/NodeTile.qml
@@ -85,6 +87,7 @@ qt_add_qml_module(rigpa
         resources/icons/rigpa.svg
         resources/icons/folder.svg
         resources/icons/settings.svg
+        resources/icons/tuner.svg
 )
 target_link_libraries(rigpa PRIVATE rigpa_core rigpa_coreplugin Qt6::Quick Qt6::QuickControls2 Qt6::Svg)
 set_target_properties(rigpa PROPERTIES MACOSX_BUNDLE_GUI_IDENTIFIER cc.hemsley.rigpa)

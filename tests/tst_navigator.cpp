@@ -101,7 +101,7 @@ private slots:
 
     void backFromAnotherMainViewGoesToRigView()
     {
-        for (auto view : {Navigator::BrowseView, Navigator::SettingsView}) {
+        for (auto view : {Navigator::BrowseView, Navigator::SettingsView, Navigator::TunerView}) {
             Navigator nav;
             nav.focusRigList();
             nav.showMainView(view);
@@ -109,6 +109,23 @@ private slots:
             QCOMPARE(nav.mainView(), Navigator::RigView);
             QCOMPARE(nav.rigFocus(), Navigator::RigEditorFocus); // rig view lands in its editor
         }
+    }
+
+    void theTunerRowDoesNothingButLeave()
+    {
+        // A tuner reports, it does not set: its ring is empty, so the rotary and apply are no-ops
+        // and back is the one control (docs/spec.md's hardware table).
+        Navigator nav;
+        nav.showMainView(Navigator::TunerView);
+        QCOMPARE(nav.mainView(), Navigator::TunerView);
+        QCOMPARE(nav.activeRing(), nav.tuner());
+        QVERIFY(nav.tuner()->isEmpty());
+        nav.rotate(1);
+        nav.apply();
+        QCOMPARE(nav.mainView(), Navigator::TunerView);
+        QCOMPARE(nav.backHint(), QStringLiteral("rig view"));
+        nav.back();
+        QCOMPARE(nav.mainView(), Navigator::RigView);
     }
 
     void browseTogglesItsSwitch()

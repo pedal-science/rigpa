@@ -12,13 +12,21 @@ App *g_instance = nullptr;
 
 App::App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine, Library *library,
          RigList *rigs, RigSession *rig, RigEditorModel *editor, NodeEditorModel *nodeEditor,
-         PickerModel *picker, PaletteModel *palette, RigManager *manager, QObject *parent)
+         PickerModel *picker, PaletteModel *palette, RigManager *manager, TunerModel *tuner, QObject *parent)
     : QObject(parent), m_config(config), m_settings(settings), m_nav(nav), m_engine(engine),
       m_library(library), m_rigs(rigs), m_rig(rig), m_editor(editor), m_nodeEditor(nodeEditor),
-      m_picker(picker), m_palette(palette), m_manager(manager)
+      m_picker(picker), m_palette(palette), m_manager(manager), m_tuner(tuner)
 {
     Q_ASSERT(!g_instance);
     g_instance = this;
+
+    // A main view's node exists while the view does: entering the tuner mounts one after each chain's
+    // input (RigSession publishes the document with it) and leaving takes it away again. That is what
+    // makes the rig silent for exactly as long as the tuner is on screen (namchain docs/tuner.md).
+    connect(m_nav, &Navigator::mainViewChanged, this,
+            [this] { m_rig->setTuner(m_nav->mainView() == Navigator::TunerView); });
+    connect(m_nav, &Navigator::mainViewChanged, this,
+            [this] { m_tuner->setWatching(m_nav->mainView() == Navigator::TunerView); });
 
     connect(m_nav, &Navigator::nodeEditorRequested, this, &App::openNodeEditor);
     connect(m_nodeEditor, &NodeEditorModel::closeRequested, this, &App::closeNodeEditor);

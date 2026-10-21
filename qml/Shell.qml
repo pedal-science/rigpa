@@ -46,6 +46,13 @@ Item {
                 enabled: !content.overlaid
                 visible: App.nav.mainView === Navigator.SettingsView
             }
+            // The tuner: while it is the main view, the engine is running a tuner node after each
+            // chain's input and the rig is silent (docs/tuner.md).
+            TunerView {
+                anchors.fill: parent
+                enabled: !content.overlaid
+                visible: App.nav.mainView === Navigator.TunerView
+            }
             // Overlays, over whichever view opened them.
             NodeEditor {
                 anchors.fill: parent

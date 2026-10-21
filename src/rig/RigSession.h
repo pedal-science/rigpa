@@ -62,6 +62,14 @@ public:
     void applyDocument(const RigDocument &edited);
     bool applying() const { return m_applying > 0; }
 
+    // The tuner's node (namchain docs/tuner.md). While the tuner is on, every document this session
+    // publishes carries one `nc.tuner` after each chain's input -- so the rig is silent -- and the
+    // editor's own document never does: it is not drawn, not undoable and never saved. Turning it on
+    // or off is one structural publish; a refusal is said in the footer and the flag stays where it
+    // was, because the tuner view is still up and the model's `running` says the rig is not muted.
+    bool tuner() const { return m_tuner; }
+    void setTuner(bool on);
+
     // Undo and redo: every edit made here (a move, an add or remove, lanes, bypass, a model, a
     // parameter) first records the document as it was; undo applies that document again. A run of
     // changes to one parameter is one step. The history is the running rig's: loading another
@@ -86,6 +94,7 @@ public:
 
 signals:
     void documentChanged();
+    void tunerChanged();
     void messageChanged();
     void historyChanged();
     // An edit was made here (the auto-save waits for a quiet second after the last one).
@@ -98,12 +107,18 @@ private:
     void record();
     // `recorded`: the edit put a step in the history, which a refusal takes out again.
     void applyJson(const QJsonObject &json, bool recorded = false);
+    // Publish what is running, with the tuner's node if it is on, without recording or adopting.
+    void publishRun();
 
     EngineSession *m_engine;
     RigList *m_rigs;
     EditStream m_edits;
     RigDocument m_document;
     bool m_hasDocument = false;
+    bool m_tuner = false;
+    // The engine generation a tuner mount was last tried at, so a refused mount is not retried for
+    // ever: a new document is a new reason to try, the same one is not.
+    qint64 m_tunerTried = -1;
     QSet<QString> m_missing;
     QString m_message;
     int m_applying = 0;

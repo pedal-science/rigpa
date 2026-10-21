@@ -26,12 +26,16 @@ class Navigator : public QObject
     Q_PROPERTY(rigpa::FocusRing *rigEditor READ rigEditor CONSTANT)
     Q_PROPERTY(rigpa::FocusRing *browse READ browse CONSTANT)
     Q_PROPERTY(rigpa::FocusRing *settings READ settings CONSTANT)
+    Q_PROPERTY(rigpa::FocusRing *tuner READ tuner CONSTANT)
     Q_PROPERTY(rigpa::FocusRing *activeRing READ activeRing NOTIFY activeRingChanged)
     Q_PROPERTY(QString applyHint READ applyHint NOTIFY hintsChanged)
     Q_PROPERTY(QString backHint READ backHint NOTIFY hintsChanged)
 
 public:
-    enum MainView { RigView, BrowseView, SettingsView };
+    // The tuner is a main view of its own: it takes the content area, and it is the one view
+    // that changes what the engine is running (it mounts a node while it is up -- see
+    // App's mainViewChanged connection and docs/tuner.md).
+    enum MainView { RigView, BrowseView, SettingsView, TunerView };
     Q_ENUM(MainView)
     enum RigFocus { RigListFocus, RigEditorFocus };
     Q_ENUM(RigFocus)
@@ -48,6 +52,7 @@ public:
     FocusRing *rigEditor() { return &m_rigEditor; }
     FocusRing *browse() { return &m_browse; }
     FocusRing *settings() { return &m_settings; }
+    FocusRing *tuner() { return &m_tuner; }
     FocusRing *activeRing();
     QString applyHint();
     QString backHint();
@@ -97,6 +102,7 @@ private:
     FocusRing m_rigEditor;
     FocusRing m_browse;
     FocusRing m_settings;
+    FocusRing m_tuner;
 };
 
 } // namespace rigpa

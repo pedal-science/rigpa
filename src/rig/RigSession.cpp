@@ -123,7 +123,12 @@ void RigSession::fetchDocument()
         // edited one, and read again once the engine has answered.
         if (reply.ok && m_applying == 0) {
             const QString before = m_document.name;
-            m_document = RigDocument::parse(reply.body.value(QStringLiteral("document")).toObject());
+            // The engine's copy carries the tuner node while the tuner is up (this session put it
+            // there). It is not part of the rig: strip it before the document becomes the model, or
+            // the canvas would draw it, an undo step would keep it and a save would write it.
+            QJsonObject running = reply.body.value(QStringLiteral("document")).toObject();
+            edits::stripTuner(running);
+            m_document = RigDocument::parse(running);
             if (m_hasDocument && m_document.name != before)
                 clearHistory(); // another rig: its own history
             m_missing.clear();
@@ -131,6 +136,14 @@ void RigSession::fetchDocument()
                 m_missing.insert(m.toObject().value(QStringLiteral("node")).toString());
             m_hasDocument = true;
             emit documentChanged();
+            // The view is up but the engine is not running the node -- the app started with
+            // `--view tuner` before the document arrived, a footswitch loaded a rig through pedald,
+            // or a mount was refused. Mount it, once per generation: this is what makes "while the
+            // tuner is on screen the rig is silent" true even when the document came from elsewhere.
+            if (m_tuner && !edits::hasTuner(running) && m_engine->generation() != m_tunerTried) {
+                m_tunerTried = m_engine->generation();
+                publishRun();
+            }
         }
         if (std::exchange(m_fetchAgain, false))
             fetchDocument();
@@ -256,8 +269,14 @@ void RigSession::applyJson(const QJsonObject &json, bool recorded)
 {
     m_document = RigDocument::parse(json);
     emit documentChanged();
+    // What goes on the wire is the document plus the tuner's node while the tuner is up, so an edit
+    // made with a tuner on screen does not un-mute the rig: the player would not hear the change
+    // they are making, and a click on the amp is exactly what a tuner exists to avoid.
+    QJsonObject published = json;
+    if (m_tuner)
+        edits::injectTuner(published);
     ++m_applying;
-    m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), json}},
+    m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), published}},
                                 [this, recorded](const EngineReply &reply) {
         if (!reply.ok && recorded && !m_undo.isEmpty()) {
             m_undo.removeLast(); // nothing changed, so there is nothing to undo
@@ -271,6 +290,37 @@ void RigSession::applyJson(const QJsonObject &json, bool recorded)
             say(tr("Too much for the pedal: %1").arg(reply.message.section(QStringLiteral(" ("), 0, 0)));
         else
             say(tr("The engine refused the change: %1").arg(reply.message.isEmpty() ? reply.code : reply.message));
+        fetchDocument();
+    });
+}
+
+void RigSession::setTuner(bool on)
+{
+    if (on == m_tuner)
+        return;
+    m_tuner = on;
+    m_tunerTried = -1;
+    emit tunerChanged();
+    publishRun();
+}
+
+void RigSession::publishRun()
+{
+    if (!m_hasDocument || m_document.chains.isEmpty())
+        return;
+    QJsonObject published = edits::toJson(m_document);
+    // With the node when the tuner is on, without it when it is off: either way the engine is left
+    // running exactly what the view says it is.
+    if (m_tuner)
+        edits::injectTuner(published);
+    ++m_applying;
+    m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), published}},
+                                [this](const EngineReply &reply) {
+        --m_applying;
+        if (!reply.ok)
+            say(tr("The tuner could not be %1: %2")
+                    .arg(m_tuner ? tr("mounted") : tr("removed"),
+                         reply.message.isEmpty() ? reply.code : reply.message));
         fetchDocument();
     });
 }

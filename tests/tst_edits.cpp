@@ -174,6 +174,169 @@ private slots:
         QCOMPARE(back.chains[0].series[1].kind, RigElement::Section);
         QCOMPARE(back.chains[0].series[1].lanes.size(), 2);
     }
+
+    // --- The tuner's ephemeral node (namchain docs/tuner.md) -------------------
+
+    void injectPutsTheTunerFirstAfterTheInput()
+    {
+        QJsonObject doc = fixture("Lead");
+        const QJsonObject before = doc.value("chains").toArray().at(0).toObject();
+        QCOMPARE(edits::injectTuner(doc), 1);
+        QVERIFY(edits::hasTuner(doc));
+
+        const QJsonObject chain = doc.value("chains").toArray().at(0).toObject();
+        const QJsonArray nodes = chain.value("nodes").toArray();
+        QCOMPARE(nodes.size(), before.value("nodes").toArray().size() + 1);
+        // The input, then the tuner, exactly as "the first node after the input" asks.
+        QCOMPARE(nodes.at(0).toObject().value("type").toString(), QStringLiteral("nc.input"));
+        QCOMPARE(nodes.at(1).toObject().value("type").toString(), QStringLiteral("nc.tuner"));
+        QCOMPARE(nodes.at(1).toObject().value("meta").toObject().value("ephemeral").toString(),
+                 QStringLiteral("tuner"));
+
+        // Everything the input fed now hangs off the tuner, and the input feeds only the tuner: what
+        // makes the whole chain silent.
+        const QJsonArray connections = chain.value("connections").toArray();
+        int outOfInput = 0, outOfTuner = 0;
+        for (const QJsonValue &v : connections) {
+            const QJsonObject c = v.toObject();
+            if (c.value("from").toString() == QStringLiteral("in")) {
+                ++outOfInput;
+                QCOMPARE(c.value("to").toString(), QStringLiteral("tuner"));
+            }
+            if (c.value("from").toString() == QStringLiteral("tuner"))
+                ++outOfTuner;
+        }
+        QCOMPARE(outOfInput, 1);
+        // One for each node the input fed in the original document.
+        int fed = 0;
+        for (const QJsonValue &v : before.value("connections").toArray())
+            if (v.toObject().value("from").toString() == QStringLiteral("in"))
+                ++fed;
+        QCOMPARE(outOfTuner, fed);
+    }
+
+    void injectReachesEveryChain()
+    {
+        QJsonObject doc = fixture("Dual");
+        QCOMPARE(doc.value("chains").toArray().size(), 2);
+        QCOMPARE(edits::injectTuner(doc), 2);
+        for (const QJsonValue &v : doc.value("chains").toArray()) {
+            const QJsonArray nodes = v.toObject().value("nodes").toArray();
+            int tuners = 0;
+            for (const QJsonValue &n : nodes)
+                if (n.toObject().value("type").toString() == QStringLiteral("nc.tuner"))
+                    ++tuners;
+            QCOMPARE(tuners, 1);
+            QCOMPARE(nodes.at(1).toObject().value("type").toString(), QStringLiteral("nc.tuner"));
+        }
+    }
+
+    void stripIsTheInverseOfInject()
+    {
+        for (const char *name : {"Clean", "Lead", "Dual"}) {
+            QJsonObject doc = fixture(name);
+            const QJsonObject original = doc;
+            QCOMPARE(edits::injectTuner(doc), doc.value("chains").toArray().size());
+            QCOMPARE(edits::stripTuner(doc), doc.value("chains").toArray().size());
+            QVERIFY(!edits::hasTuner(doc));
+            // Every node and every wire, byte for byte: the epilogue of a tuner session is the
+            // document it started with.
+            QCOMPARE(doc.value("chains").toArray(), original.value("chains").toArray());
+        }
+    }
+
+    void injectIsIdempotent()
+    {
+        QJsonObject doc = fixture("Clean");
+        QCOMPARE(edits::injectTuner(doc), 1);
+        QCOMPARE(edits::injectTuner(doc), 0);
+        int tuners = 0;
+        for (const QJsonValue &n : doc.value("chains").toArray().at(0).toObject().value("nodes").toArray())
+            if (n.toObject().value("type").toString() == QStringLiteral("nc.tuner"))
+                ++tuners;
+        QCOMPARE(tuners, 1);
+    }
+
+    void injectAvoidsAnIdTheChainUses()
+    {
+        QJsonObject doc = fixture("Clean");
+        QJsonArray chains = doc.value("chains").toArray();
+        QJsonObject chain = chains.at(0).toObject();
+        QJsonArray nodes = chain.value("nodes").toArray();
+        nodes.append(QJsonObject{{"id", "tuner"}, {"type", "nc.gain"}});
+        chain.insert("nodes", nodes);
+        chains.replace(0, chain);
+        doc.insert("chains", chains);
+
+        QCOMPARE(edits::injectTuner(doc), 1);
+        QString injected;
+        for (const QJsonValue &n : doc.value("chains").toArray().at(0).toObject().value("nodes").toArray())
+            if (n.toObject().value("type").toString() == QStringLiteral("nc.tuner"))
+                injected = n.toObject().value("id").toString();
+        QCOMPARE(injected, QStringLiteral("tuner-1"));
+    }
+
+    void abareGraphGetsOneToo()
+    {
+        // A one-chain document may be written with its graph at the top (rigpa's toJson does), and
+        // the splice has to work there or a bare rig would be the one rig a tuner cannot mute.
+        QJsonObject doc = fixture("Clean");
+        const QJsonArray chain = doc.value("chains").toArray();
+        const QJsonObject first = chain.at(0).toObject();
+        QJsonObject bare;
+        bare.insert("name", doc.value("name"));
+        bare.insert("nodes", first.value("nodes"));
+        bare.insert("connections", first.value("connections"));
+
+        QCOMPARE(edits::injectTuner(bare), 1);
+        QVERIFY(edits::hasTuner(bare));
+        QCOMPARE(bare.value("nodes").toArray().at(1).toObject().value("type").toString(),
+                 QStringLiteral("nc.tuner"));
+        QCOMPARE(edits::stripTuner(bare), 1);
+        QVERIFY(!edits::hasTuner(bare));
+        QCOMPARE(bare.value("nodes").toArray(), first.value("nodes").toArray());
+        QCOMPARE(bare.value("connections").toArray(), first.value("connections").toArray());
+    }
+
+    void stripLeavesAHandWrittenTunerAlone()
+    {
+        // A rig may hold a tuner node of its own; only the one a client mounted carries the marker,
+        // and only that one is the client's to take away.
+        QJsonObject doc = fixture("Clean");
+        QJsonArray chains = doc.value("chains").toArray();
+        QJsonObject chain = chains.at(0).toObject();
+        QJsonArray nodes = chain.value("nodes").toArray();
+        nodes.append(QJsonObject{{"id", "mine"}, {"type", "nc.tuner"}});
+        chain.insert("nodes", nodes);
+        chains.replace(0, chain);
+        doc.insert("chains", chains);
+
+        QVERIFY(!edits::hasTuner(doc));
+        QCOMPARE(edits::stripTuner(doc), 0);
+        int tuners = 0;
+        for (const QJsonValue &n : doc.value("chains").toArray().at(0).toObject().value("nodes").toArray())
+            if (n.toObject().value("type").toString() == QStringLiteral("nc.tuner"))
+                ++tuners;
+        QCOMPARE(tuners, 1);
+    }
+
+    void anEmptyChainMutesToo()
+    {
+        // Input straight to output: the tuner is still the first node after the input.
+        QJsonObject doc;
+        QJsonObject chain;
+        chain.insert("id", QStringLiteral("only"));
+        chain.insert("nodes", QJsonArray{QJsonObject{{"id", "in"}, {"type", "nc.input"}},
+                                         QJsonObject{{"id", "out"}, {"type", "nc.output"}}});
+        chain.insert("connections", QJsonArray{QJsonObject{{"from", "in"}, {"to", "out"}}});
+        doc.insert("chains", QJsonArray{chain});
+
+        QCOMPARE(edits::injectTuner(doc), 1);
+        const QJsonObject after = doc.value("chains").toArray().at(0).toObject();
+        QCOMPARE(after.value("nodes").toArray().size(), 3);
+        QCOMPARE(edits::stripTuner(doc), 1);
+        QCOMPARE(doc.value("chains").toArray().at(0).toObject(), chain);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestEdits)

@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
         QStringLiteral("Render, save the window to <file> (PNG) once it has settled, and quit."),
         QStringLiteral("file"));
     const QCommandLineOption viewOption(QStringLiteral("view"),
-        QStringLiteral("Start in this main view: rig, browse or settings."),
+        QStringLiteral("Start in this main view: rig, browse, settings or tuner."),
         QStringLiteral("view"));
     const QCommandLineOption inputOption(QStringLiteral("input"),
         QStringLiteral("Replay hardware controls once loaded (for demos and checks): '>' and '<' turn "
@@ -95,8 +95,10 @@ int main(int argc, char *argv[])
     rigpa::PickerModel picker(&library);
     rigpa::PaletteModel palette(&engineSession, &library);
     rigpa::RigManager manager(&engineSession, &rigSession, &rigs, &pedald);
+    rigpa::TunerModel tuner;
+    tuner.setClient(engineSession.client());
     rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor,
-                         &nodeEditor, &picker, &palette, &manager);
+                         &nodeEditor, &picker, &palette, &manager, &tuner);
 
     // The rotary and apply in rig view: load a rig from the list.
     QObject::connect(&nav, &rigpa::Navigator::rigLoadRequested, &rigSession, &rigpa::RigSession::loadRig);
@@ -125,6 +127,8 @@ int main(int argc, char *argv[])
             nav.showMainView(rigpa::Navigator::BrowseView);
         else if (view == QLatin1String("settings"))
             nav.showMainView(rigpa::Navigator::SettingsView);
+        else if (view == QLatin1String("tuner"))
+            nav.showMainView(rigpa::Navigator::TunerView);
     }
 
     QQmlApplicationEngine engine;

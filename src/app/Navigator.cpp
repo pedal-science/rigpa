@@ -4,7 +4,7 @@ namespace rigpa {
 
 Navigator::Navigator(QObject *parent) : QObject(parent)
 {
-    for (FocusRing *ring : {&m_rigList, &m_rigEditor, &m_browse, &m_settings})
+    for (FocusRing *ring : {&m_rigList, &m_rigEditor, &m_browse, &m_settings, &m_tuner})
         watch(ring);
 }
 
@@ -24,6 +24,10 @@ FocusRing *Navigator::activeRing()
         return &m_browse;
     case SettingsView:
         return &m_settings;
+    case TunerView:
+        // A tuner has nothing to turn: the ring is empty, so the rotary and apply do nothing there
+        // and back is the only way out (docs/spec.md's hardware table).
+        return &m_tuner;
     }
     return nullptr;
 }
@@ -98,6 +102,7 @@ void Navigator::back()
         break; // back in the rig list does nothing: it is the top
     case BrowseView:
     case SettingsView:
+    case TunerView:
         showMainView(RigView);
         break;
     }
@@ -232,6 +237,7 @@ QString Navigator::backHint()
         return m_rigFocus == RigEditorFocus ? tr("rig list") : QString();
     case BrowseView:
     case SettingsView:
+    case TunerView:
         return tr("rig view");
     }
     return {};

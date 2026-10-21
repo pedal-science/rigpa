@@ -42,6 +42,10 @@ struct NodeTypeSpec {
     QString category;
     bool macro = false;
     bool bypassable = false;
+    // Whether a palette should offer the type (`flags.in_palette`). False for a node a client mounts
+    // around a view of its own rather than a block a player adds: nc.tuner, which rigpa splices into
+    // the document while its tuner is on screen (namchain docs/tuner.md).
+    bool inPalette = true;
     QList<ParamSpec> params;
 
     const ParamSpec *param(const QString &id) const;

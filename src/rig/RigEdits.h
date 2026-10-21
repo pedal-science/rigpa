@@ -70,5 +70,27 @@ RigElement newSection(int lanes = 2);
 // The document the tree says, for rig.apply.
 QJsonObject toJson(const RigDocument &doc);
 
+// --- The tuner's ephemeral node (namchain docs/tuner.md) --------------------
+//
+// A tuner is a UI element, not a block: while it is on screen the document that is *published* has
+// one `nc.tuner` after each chain's input, marked `meta.ephemeral`, and the rig is silent because the
+// node's output is silence. The editor's own document never holds it -- that is what makes it
+// invisible, un-undoable and unsaveable.
+//
+// These work on the document JSON rather than on the tree, so they also reach a chain the editor
+// calls un-editable (a hand-written fan-out) and the bare-graph form of a one-chain document.
+
+// Splices one tuner in after each chain's input, and repoints at it everything the input fed.
+// Returns how many chains gained one; 0 when the document already has them or has no input node.
+int injectTuner(QJsonObject &document);
+
+// The exact inverse: each consumer of a tuner's output is repointed at the tuner's predecessor, and
+// the tuner goes with its wires. Returns how many chains lost one.
+int stripTuner(QJsonObject &document);
+
+// Whether a document carries an injected tuner -- which, on a document read back from the engine,
+// is how rigpa tells that the node it mounted is still running.
+bool hasTuner(const QJsonObject &document);
+
 } // namespace edits
 } // namespace rigpa

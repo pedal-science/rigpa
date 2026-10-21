@@ -35,6 +35,10 @@ class EngineSession : public QObject
     Q_PROPERTY(QVariantList inputPeaks READ inputPeaks NOTIFY levelsChanged)
     Q_PROPERTY(QVariantList outputPeaks READ outputPeaks NOTIFY levelsChanged)
     Q_PROPERTY(bool metersEnabled READ metersEnabled WRITE setMetersEnabled NOTIFY metersEnabledChanged)
+    // Whether this engine has the tuner at all: the node type in its schema and `node_state` for
+    // the reading. The menu button is disabled without it rather than publishing a document the
+    // engine would refuse (namchain docs/tuner.md).
+    Q_PROPERTY(bool hasTuner READ hasTuner NOTIFY schemaChanged)
 
 public:
     enum Connection { NotConfigured, Connecting, Connected, Retrying, Refused };
@@ -54,6 +58,13 @@ public:
     EngineClient *client() { return &m_client; }
     // The node catalogue, read once per connection (empty until it arrives).
     const Schema &schema() const { return m_schema; }
+    // Whether this engine has the tuner: the node type, and the state the tuner's reading arrives
+    // in. An engine that predates either is one whose tuner button is disabled rather than one that
+    // refuses the document (namchain docs/tuner.md).
+    bool hasTuner() const
+    {
+        return m_client.hasFeature(QStringLiteral("node_state")) && m_schema.type(QStringLiteral("nc.tuner")) != nullptr;
+    }
 
     Connection connection() const;
     QString connectionText() const;

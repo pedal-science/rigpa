@@ -10,6 +10,7 @@
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
+#include "rig/TunerModel.h"
 #include "Navigator.h"
 #include "Settings.h"
 
@@ -39,11 +40,13 @@ class App : public QObject
     Q_PROPERTY(rigpa::PickerModel *picker READ picker CONSTANT)
     Q_PROPERTY(rigpa::PaletteModel *palette READ palette CONSTANT)
     Q_PROPERTY(rigpa::RigManager *manager READ manager CONSTANT)
+    Q_PROPERTY(rigpa::TunerModel *tuner READ tuner CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
         Library *library, RigList *rigs, RigSession *rig, RigEditorModel *editor,
         NodeEditorModel *nodeEditor, PickerModel *picker, PaletteModel *palette, RigManager *manager,
+        TunerModel *tuner,
         QObject *parent = nullptr);
     ~App() override;
 
@@ -61,6 +64,7 @@ public:
     PickerModel *picker() const { return m_picker; }
     PaletteModel *palette() const { return m_palette; }
     RigManager *manager() const { return m_manager; }
+    TunerModel *tuner() const { return m_tuner; }
 
     // The header's +: the palette, over the rig view. What is chosen goes in after the selected
     // block (in its lane, if it is in one), or at the end of the first chain.
@@ -86,6 +90,7 @@ private:
     PickerModel *m_picker;
     PaletteModel *m_palette;
     RigManager *m_manager;
+    TunerModel *m_tuner;
 };
 
 } // namespace rigpa

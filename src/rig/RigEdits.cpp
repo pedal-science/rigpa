@@ -1,6 +1,8 @@
 #include "RigEdits.h"
 
+#include <QHash>
 #include <QJsonArray>
+#include <QSet>
 #include <QUuid>
 
 #include <cmath>
@@ -316,6 +318,192 @@ QJsonObject toJson(const RigDocument &doc)
         chains.append(chainJson(c));
     json.insert(QStringLiteral("chains"), chains);
     return json;
+}
+
+
+namespace {
+
+const QString kTunerType = QStringLiteral("nc.tuner");
+const QString kTunerTag = QStringLiteral("tuner");
+const QString kEphemeral = QStringLiteral("ephemeral");
+const QString kChains = QStringLiteral("chains");
+const QString kNodes = QStringLiteral("nodes");
+const QString kConnections = QStringLiteral("connections");
+const QString kFrom = QStringLiteral("from");
+const QString kFromPort = QStringLiteral("from_port");
+const QString kTo = QStringLiteral("to");
+const QString kToPort = QStringLiteral("to_port");
+const QString kInputType = QStringLiteral("nc.input");
+
+// Whether this node object is one a client mounted around its tuner (docs/tuner.md): the type alone
+// is not enough, because a rig may hold a hand-written tuner node that no strip should touch.
+bool isInjected(const QJsonObject &node)
+{
+    return node.value(QStringLiteral("type")).toString() == kTunerType
+           && node.value(QStringLiteral("meta")).toObject().value(kEphemeral).toString() == kTunerTag;
+}
+
+bool graphHasTuner(const QJsonObject &graph)
+{
+    for (const QJsonValue &v : graph.value(kNodes).toArray())
+        if (isInjected(v.toObject()))
+            return true;
+    return false;
+}
+
+// Splices one tuner in after this graph's input, and repoints everything the input fed at it.
+bool injectGraph(QJsonObject &graph)
+{
+    if (graphHasTuner(graph))
+        return false;
+    const QJsonArray nodes = graph.value(kNodes).toArray();
+    QString inputId;
+    QSet<QString> ids;
+    for (const QJsonValue &v : nodes) {
+        const QJsonObject n = v.toObject();
+        const QString id = n.value(QStringLiteral("id")).toString();
+        if (!id.isEmpty())
+            ids.insert(id);
+        if (inputId.isEmpty() && n.value(QStringLiteral("type")).toString() == kInputType)
+            inputId = id;
+    }
+    if (inputId.isEmpty())
+        return false;
+
+    // A chain-local id, free even in a document that already uses "tuner" for something.
+    QString tuner = QStringLiteral("tuner");
+    for (int n = 1; ids.contains(tuner); ++n)
+        tuner = QStringLiteral("tuner-") + QString::number(n);
+
+    // Right after the input in the array as well as in the signal path: the engine reads the graph
+    // from the connections, but a document is also a thing people read, and rig.get hands it back.
+    int inputIndex = 0;
+    for (int i = 0; i < nodes.size(); ++i)
+        if (nodes.at(i).toObject().value(QStringLiteral("id")).toString() == inputId) {
+            inputIndex = i;
+            break;
+        }
+    QJsonArray out = nodes;
+    out.insert(inputIndex + 1, QJsonObject{{QStringLiteral("id"), tuner},
+                                           {QStringLiteral("type"), kTunerType},
+                                           {QStringLiteral("meta"), QJsonObject{{kEphemeral, kTunerTag}}}});
+    graph.insert(kNodes, out);
+
+    // Whatever left the input now leaves the tuner; the input itself feeds only the tuner.
+    QJsonArray connections = graph.value(kConnections).toArray();
+    for (int i = 0; i < connections.size(); ++i) {
+        QJsonObject c = connections.at(i).toObject();
+        if (c.value(kFrom).toString() == inputId) {
+            c.insert(kFrom, tuner);
+            connections.replace(i, c);
+        }
+    }
+    connections.append(QJsonObject{{kFrom, inputId}, {kFromPort, 0}, {kTo, tuner}, {kToPort, 0}});
+    graph.insert(kConnections, connections);
+    return true;
+}
+
+// The exact inverse: each consumer of the tuner's output is repointed at its predecessor.
+bool stripGraph(QJsonObject &graph)
+{
+    const QJsonArray nodes = graph.value(kNodes).toArray();
+    const QJsonArray connections = graph.value(kConnections).toArray();
+
+    QSet<QString> tuners;
+    for (const QJsonValue &v : nodes) {
+        const QJsonObject n = v.toObject();
+        if (isInjected(n))
+            tuners.insert(n.value(QStringLiteral("id")).toString());
+    }
+    if (tuners.isEmpty())
+        return false;
+
+    QHash<QString, QString> source;
+    QHash<QString, int> sourcePort;
+    for (const QJsonValue &v : connections) {
+        const QJsonObject c = v.toObject();
+        const QString to = c.value(kTo).toString();
+        if (tuners.contains(to) && !source.contains(to)) {
+            source.insert(to, c.value(kFrom).toString());
+            sourcePort.insert(to, c.value(kFromPort).toInt(0));
+        }
+    }
+
+    QJsonArray keptNodes;
+    for (const QJsonValue &v : nodes) {
+        const QJsonObject n = v.toObject();
+        if (!tuners.contains(n.value(QStringLiteral("id")).toString()))
+            keptNodes.append(n);
+    }
+    QJsonArray keptConnections;
+    for (const QJsonValue &v : connections) {
+        QJsonObject c = v.toObject();
+        const QString from = c.value(kFrom).toString();
+        if (tuners.contains(c.value(kTo).toString()))
+            continue; // the wire into the tuner goes with it
+        if (tuners.contains(from)) {
+            if (!source.contains(from))
+                continue; // nothing to heal it to: the wire goes too
+            c.insert(kFrom, source.value(from));
+            // The port belongs to the *source* node, so it comes from the wire into the tuner -- but
+            // only where it has to be spelled: a document that wrote no from_port meant port 0, and
+            // healing it must not grow a key the original never had.
+            if (sourcePort.value(from) != 0 || c.contains(kFromPort))
+                c.insert(kFromPort, sourcePort.value(from));
+        }
+        keptConnections.append(c);
+    }
+    graph.insert(kNodes, keptNodes);
+    graph.insert(kConnections, keptConnections);
+    return true;
+}
+
+} // namespace
+
+bool hasTuner(const QJsonObject &document)
+{
+    if (!document.contains(kChains))
+        return graphHasTuner(document);
+    for (const QJsonValue &v : document.value(kChains).toArray())
+        if (graphHasTuner(v.toObject()))
+            return true;
+    return false;
+}
+
+int injectTuner(QJsonObject &document)
+{
+    if (!document.contains(kChains))
+        return injectGraph(document) ? 1 : 0;
+    QJsonArray chains = document.value(kChains).toArray();
+    int injected = 0;
+    for (int i = 0; i < chains.size(); ++i) {
+        QJsonObject chain = chains.at(i).toObject();
+        if (injectGraph(chain)) {
+            chains.replace(i, chain);
+            ++injected;
+        }
+    }
+    if (injected > 0)
+        document.insert(kChains, chains);
+    return injected;
+}
+
+int stripTuner(QJsonObject &document)
+{
+    if (!document.contains(kChains))
+        return stripGraph(document) ? 1 : 0;
+    QJsonArray chains = document.value(kChains).toArray();
+    int stripped = 0;
+    for (int i = 0; i < chains.size(); ++i) {
+        QJsonObject chain = chains.at(i).toObject();
+        if (stripGraph(chain)) {
+            chains.replace(i, chain);
+            ++stripped;
+        }
+    }
+    if (stripped > 0)
+        document.insert(kChains, chains);
+    return stripped;
 }
 
 } // namespace rigpa::edits

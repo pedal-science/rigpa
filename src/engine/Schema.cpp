@@ -86,6 +86,10 @@ Schema Schema::parse(const QJsonObject &reply)
         // A macro declares how it bypasses (docs/macros.md); a primitive says whether it can.
         t.bypassable = t.macro ? !o.value(QStringLiteral("bypass")).toString().isEmpty()
                                : o.value(QStringLiteral("flags")).toObject().value(QStringLiteral("bypassable")).toBool();
+        // A macro has no flags object and is always a block; an engine that predates the flag says
+        // nothing, and a type it does list is one a palette may offer.
+        const QJsonValue inPalette = o.value(QStringLiteral("flags")).toObject().value(QStringLiteral("in_palette"));
+        t.inPalette = inPalette.isBool() ? inPalette.toBool() : true;
         for (const auto &p : o.value(QStringLiteral("params")).toArray())
             t.params.append(parseParam(p.toObject()));
         schema.m_order.append(t.id);

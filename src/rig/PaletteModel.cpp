@@ -47,6 +47,8 @@ void PaletteModel::rebuild()
         if (isPlumbing(id))
             continue;
         const NodeTypeSpec *t = schema.type(id);
+        if (t != nullptr && !t->inPalette)
+            continue; // not a block: a client mounts it around a view (nc.tuner)
         QString detail = t->category == QLatin1String("eq") ? QStringLiteral("EQ") : t->category;
         if (!detail.isEmpty())
             detail[0] = detail[0].toUpper();

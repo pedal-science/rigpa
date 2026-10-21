@@ -2,7 +2,9 @@ import QtQuick
 import Rigpa.Core
 
 // Five 96×96 slots, top to bottom: rig view (blank while it is the active main view), browse,
-// two spare, settings.
+// a spare, the tuner, settings. The tuner is the one view that changes what the engine runs -- it
+// mounts a node while it is up -- so its button is disabled on an engine that has no tuner node
+// (namchain docs/tuner.md).
 Rectangle {
     color: Theme.menuBackground
 
@@ -18,7 +20,12 @@ Rectangle {
             onClicked: App.nav.showMainView(Navigator.BrowseView)
         }
         MenuButton { enabled: false }
-        MenuButton { enabled: false }
+        MenuButton {
+            icon: Theme.icon("tuner")
+            active: App.nav.mainView === Navigator.TunerView
+            enabled: App.engine.hasTuner
+            onClicked: App.nav.showMainView(Navigator.TunerView)
+        }
         MenuButton {
             icon: Theme.icon("settings")
             active: App.nav.mainView === Navigator.SettingsView
