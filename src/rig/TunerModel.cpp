@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonValue>
 
+#include <algorithm>
 #include <cmath>
 
 namespace rigpa {
@@ -81,7 +82,12 @@ void TunerModel::clear()
     m_inTune = false;
     m_needleX = kBarWidth / 2;
     m_levelFraction = 0.0;
+    m_muted = true;
+    m_cents = 0.0;
+    for (double &phase : m_phase)
+        phase = 0.0;
     m_status = tr("Waiting for the engine");
+    emit strobeChanged();
 }
 
 void TunerModel::applyReply(const QJsonObject &body)
@@ -128,6 +134,12 @@ void TunerModel::applyReply(const QJsonObject &body)
     levelText = QString::number(state.value(QStringLiteral("level_db")).toDouble(-120.0), 'f', 0) + tr(" dB");
     a4Text = running ? tr("A4 = %1 Hz").arg(state.value(QStringLiteral("a4")).toDouble(440.0), 0, 'f', 0)
                      : QString();
+    // `mute` is the node's own switch, published as a bool; a number is accepted too, because a flag
+    // in a document is 0/1 and a client should not have to care which spelling a node chose.
+    const QJsonValue muteValue = state.value(QStringLiteral("mute"));
+    const bool muted = muteValue.isBool() ? muteValue.toBool()
+                      : muteValue.isDouble() ? muteValue.toDouble() != 0.0
+                                             : true;
     const bool inTune = valid && std::abs(cents) <= double(kInTuneCents);
     const double levelDb = std::max(-60.0, std::min(0.0, state.value(QStringLiteral("level_db")).toDouble(-120.0)));
     const qreal levelFraction = qreal((levelDb + 60.0) / 60.0);
@@ -145,7 +157,8 @@ void TunerModel::applyReply(const QJsonObject &body)
     const bool same = had && running == m_running && valid == m_valid && noteText == m_noteText
                       && centsText == m_centsText && hzText == m_hzText && levelText == m_levelText
                       && inTune == m_inTune && needle == m_needleX && a4Text == m_a4Text
-                      && qAbs(levelFraction - m_levelFraction) < 0.005 && status == m_status;
+                      && muted == m_muted && qAbs(levelFraction - m_levelFraction) < 0.005
+                      && status == m_status;
     if (same)
         return;
 
@@ -160,7 +173,46 @@ void TunerModel::applyReply(const QJsonObject &body)
     m_inTune = inTune;
     m_needleX = needle;
     m_levelFraction = levelFraction;
+    m_muted = muted;
+    // The strobe drifts by the *unrounded* cents: a display that stepped a tenth of a cent at a time
+    // would tick, and the rows exist to show a drift rather than a number.
+    m_cents = valid ? cents : 0.0;
     emit changed();
+}
+
+void TunerModel::advance(qreal seconds)
+{
+    if (!m_watching)
+        return;
+    // A timer that stalled (a repaint, a suspension) must not jump the bands a whole period: the
+    // clamp is a display device, not a physics one, and the alternative is a pattern that teleports.
+    double dt = double(seconds);
+    if (!(dt > 0.0) || dt > 0.25)
+        dt = 0.016;
+    // No note, no drift: the rows settle rather than animate a reading that is not there.
+    const double cents = m_valid ? m_cents : 0.0;
+    bool moved = false;
+    // The bands' presence follows whether there is a note, over the reference's 0.25 s constant:
+    // they settle and fade rather than blink out.
+    const double target = m_valid ? 1.0 : 0.22;
+    const double fresh = m_activity + (target - m_activity) * (1.0 - std::exp(-dt / 0.25));
+    if (std::abs(fresh - m_activity) > 0.002) {
+        m_activity = fresh;
+        moved = true;
+    }
+    for (int row = 0; row < kRowCount; ++row) {
+        const double partial = row == 0 ? 1.0 : row == 1 ? 2.0 : 4.0;
+        const double speed = m_valid ? std::max(-kMaxDrift, std::min(kMaxDrift, kDriftPerCent * cents * partial))
+                                      : 0.0;
+        double phase = m_phase[row] + speed * dt;
+        phase -= std::floor(phase);
+        if (phase != m_phase[row]) {
+            m_phase[row] = phase;
+            moved = true;
+        }
+    }
+    if (moved)
+        emit strobeChanged();
 }
 
 } // namespace rigpa

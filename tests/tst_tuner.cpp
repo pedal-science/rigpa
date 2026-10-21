@@ -17,11 +17,12 @@ using namespace rigpa;
 namespace {
 
 QJsonObject tunerState(bool valid, const QString &note, int octave, double cents, double hz,
-                       double levelDb = -18.0, int blocks = 100)
+                       double levelDb = -18.0, int blocks = 100, bool muted = true)
 {
     QJsonObject state{{QStringLiteral("a4"), 440.0},
                       {QStringLiteral("blocks"), blocks},
                       {QStringLiteral("valid"), valid},
+                      {QStringLiteral("mute"), muted},
                       {QStringLiteral("level_db"), levelDb}};
     if (valid) {
         // The engine omits the note keys when it has no note: a client must not see a stale one
@@ -191,6 +192,82 @@ private slots:
         QCOMPARE(model.levelFraction(), 1.0);
         model.applyReply(reply(tunerState(true, QStringLiteral("A"), 2, 0.0, 110.0, -30.0)));
         QCOMPARE(model.levelFraction(), 0.5);
+    }
+
+    void theSwitchIsTheEngines()
+    {
+        // The view binds its control to what the engine reports, so a refused patch leaves the two
+        // visibly disagreeing rather than silently lying. A flag arrives as 0/1 sometimes, which is
+        // the same answer.
+        TunerModel model;
+        model.setWatching(true);
+        QVERIFY(model.muted()); // a tuner comes up muted
+
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 2, 0.0, 110.0, -18.0, 100, false)));
+        QVERIFY(!model.muted());
+
+        QJsonObject asNumber = tunerState(true, QStringLiteral("A"), 2, 0.0, 110.0, -18.0, 101, true);
+        asNumber.insert(QStringLiteral("mute"), 1);
+        model.applyReply(reply(asNumber));
+        QVERIFY(model.muted());
+
+        // No node at all: no switch to report either, and the view's status says the rig is not muted.
+        model.applyReply({{QStringLiteral("generation"), 1}, {QStringLiteral("nodes"), QJsonArray{}}});
+        QVERIFY(model.muted());
+        QVERIFY(!model.running());
+    }
+
+    void theStrobeDriftsByCentsAndPartial()
+    {
+        // Ported law (namchain docs/tuner.md, "The strobe"): row k drifts 0.5 * cents * k band
+        // periods per second, clamped at 12. A sharp string drifts right, a flat one left, and a
+        // perfect one does not move at all.
+        TunerModel model;
+        model.setWatching(true);
+        // Ten cents sharp, a tenth of a second: the rows move 0.5, 1 and 2 periods, so the first
+        // lands half way, the second comes back round to the start, and the fourth is clamped to 12
+        // periods a second and lands at a fifth.
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 4, 10.0, 442.55)));
+        QCOMPARE(model.rowPhase1(), 0.0);
+        model.advance(0.1);
+        QVERIFY(qAbs(model.rowPhase1() - 0.5) < 0.01);
+        QVERIFY(model.rowPhase2() < 0.01 || qAbs(model.rowPhase2() - 1.0) < 0.01);
+        QVERIFY(qAbs(model.rowPhase4() - 0.2) < 0.01); // 2 periods/s * 0.5 would be 1.0; the clamp
+                                                       // leaves 12 * 0.1 = 1.2, which wraps to 0.2
+
+        // In tune: the rows stand still, which is the reading a player tunes to.
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 4, 0.0, 440.0, -18.0, 101)));
+        const qreal held = model.rowPhase1();
+        model.advance(0.2);
+        QCOMPARE(model.rowPhase1(), held);
+
+        // And with no note there is nothing to drift: the rows settle rather than animate a reading
+        // that is not there.
+        model.applyReply(reply(tunerState(false, QString(), 0, 0.0, 0.0, -74.0, 102)));
+        const qreal settled = model.rowPhase2();
+        model.advance(0.2);
+        QCOMPARE(model.rowPhase2(), settled);
+    }
+
+    void theStrobeClampsAndIsOffWhileNotWatching()
+    {
+        TunerModel model;
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 4, 50.0, 440.0))); // not watching
+        model.advance(0.5);
+        QCOMPARE(model.rowPhase1(), 0.0);
+
+        model.setWatching(true);
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 4, 50.0, 440.0)));
+        // 50 cents is 25 periods a second unclamped, and 12 with the clamp: a quarter of a second is
+        // three whole periods, so the row is back at the start. Unclamped it would be at 0.25 --
+        // which is what makes this an assertion about the clamp and not about arithmetic.
+        model.advance(0.25);
+        QVERIFY(qAbs(model.rowPhase1() - 0.0) < 0.01);
+        model.advance(1.0 / 24.0);
+        QVERIFY(qAbs(model.rowPhase1() - 0.5) < 0.01);
+        // A stalled clock must not teleport the bands a whole period.
+        model.advance(30.0);
+        QVERIFY(model.rowPhase1() >= 0.0 && model.rowPhase1() < 1.0);
     }
 
     void leavingTheViewForgetsEverything()

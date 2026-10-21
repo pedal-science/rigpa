@@ -274,7 +274,7 @@ void RigSession::applyJson(const QJsonObject &json, bool recorded)
     // they are making, and a click on the amp is exactly what a tuner exists to avoid.
     QJsonObject published = json;
     if (m_tuner)
-        edits::injectTuner(published);
+        edits::injectTuner(published, m_tunerMuted);
     ++m_applying;
     m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), published}},
                                 [this, recorded](const EngineReply &reply) {
@@ -312,7 +312,7 @@ void RigSession::publishRun()
     // With the node when the tuner is on, without it when it is off: either way the engine is left
     // running exactly what the view says it is.
     if (m_tuner)
-        edits::injectTuner(published);
+        edits::injectTuner(published, m_tunerMuted);
     ++m_applying;
     m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), published}},
                                 [this](const EngineReply &reply) {
@@ -323,6 +323,46 @@ void RigSession::publishRun()
                          reply.message.isEmpty() ? reply.code : reply.message));
         fetchDocument();
     });
+}
+
+void RigSession::setTunerMuted(bool muted)
+{
+    if (muted == m_tunerMuted)
+        return;
+    // Without a mounted node there is nothing to patch: the switch is remembered, and the node is
+    // mounted with it the next time the view opens.
+    if (!m_tuner || !m_hasDocument || m_document.chains.isEmpty()) {
+        m_tunerMuted = muted;
+        emit tunerMutedChanged();
+        return;
+    }
+    QJsonArray ops{QJsonObject{{QStringLiteral("op"), QStringLiteral("set_param")},
+                              {QStringLiteral("node"), QStringLiteral("tuner")},
+                              {QStringLiteral("param"), QStringLiteral("mute")},
+                              {QStringLiteral("value"), muted ? 1 : 0}}};
+    m_tunerMuted = muted;
+    emit tunerMutedChanged();
+    // One patch per chain: `rig.patch` names the chain it applies to, and the node's id is the same
+    // in each. Three at most, and each answer is the same command queue, so a failure on one is a
+    // failure on all.
+    for (const RigChain &chain : m_document.chains) {
+        const QString id = chain.id;
+        if (id.isEmpty())
+            continue;
+        m_engine->client()->request(
+            QStringLiteral("rig.patch"),
+            {{QStringLiteral("chain"), id},
+             {QStringLiteral("ops"), ops}},
+            [this, muted](const EngineReply &reply) {
+                if (reply.ok)
+                    return;
+                say(tr("The tuner's switch did not move: %1")
+                        .arg(reply.message.isEmpty() ? reply.code : reply.message));
+                // Put it back: the node did not move, so neither should the button.
+                m_tunerMuted = !muted;
+                emit tunerMutedChanged();
+            });
+    }
 }
 
 bool RigSession::isBypassed(const QString &element) const

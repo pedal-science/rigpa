@@ -30,6 +30,8 @@ class RigSession : public QObject
     Q_PROPERTY(QString message READ message NOTIFY messageChanged)
     Q_PROPERTY(bool canUndo READ canUndo NOTIFY historyChanged)
     Q_PROPERTY(bool canRedo READ canRedo NOTIFY historyChanged)
+    /// The tuner's switch, as the player last set it (see tunerMuted()).
+    Q_PROPERTY(bool tunerMuted READ tunerMuted NOTIFY tunerMutedChanged)
 
 public:
     RigSession(EngineSession *engine, RigList *rigs, QObject *parent = nullptr);
@@ -68,6 +70,19 @@ public:
     // or off is one structural publish; a refusal is said in the footer and the flag stays where it
     // was, because the tuner view is still up and the model's `running` says the rig is not muted.
     bool tuner() const { return m_tuner; }
+
+    /// Whether the tuner's node is muting the rig — its switch, not its presence (namchain
+    /// docs/tuner.md, "The switch"). Off means the rig is audible while the view is up, which the
+    /// view says out loud.
+    ///
+    /// It is kept for the session and not saved: a real pedal's switch stays where it was pushed,
+    /// and `mute` is the node's default, so the app always starts with the tuner silent.
+    bool tunerMuted() const { return m_tunerMuted; }
+
+    /// Stomp the switch. One `rig.patch` per chain, because a patch names the chain it applies to;
+    /// the answer is `smooth`, so the node ramps the pass-through and nothing rebuilds. A refusal
+    /// leaves the switch where it was and says why.
+    Q_INVOKABLE void setTunerMuted(bool muted);
     void setTuner(bool on);
 
     // Undo and redo: every edit made here (a move, an add or remove, lanes, bypass, a model, a
@@ -95,6 +110,7 @@ public:
 signals:
     void documentChanged();
     void tunerChanged();
+    void tunerMutedChanged();
     void messageChanged();
     void historyChanged();
     // An edit was made here (the auto-save waits for a quiet second after the last one).
@@ -116,6 +132,9 @@ private:
     RigDocument m_document;
     bool m_hasDocument = false;
     bool m_tuner = false;
+    // The tuner's switch, as the player last set it. `injectTuner` puts it in the mounted node, so
+    // the next publish (any edit while the view is up) does not silently close it again.
+    bool m_tunerMuted = true;
     // The engine generation a tuner mount was last tried at, so a refused mount is not retried for
     // ever: a new document is a new reason to try, the same one is not.
     qint64 m_tunerTried = -1;

@@ -326,6 +326,8 @@ namespace {
 const QString kTunerType = QStringLiteral("nc.tuner");
 const QString kTunerTag = QStringLiteral("tuner");
 const QString kEphemeral = QStringLiteral("ephemeral");
+/// The tuner's switch: 0 lets the input through (namchain docs/tuner.md, "The switch").
+const QString kMute = QStringLiteral("mute");
 const QString kChains = QStringLiteral("chains");
 const QString kNodes = QStringLiteral("nodes");
 const QString kConnections = QStringLiteral("connections");
@@ -352,7 +354,7 @@ bool graphHasTuner(const QJsonObject &graph)
 }
 
 // Splices one tuner in after this graph's input, and repoints everything the input fed at it.
-bool injectGraph(QJsonObject &graph)
+bool injectGraph(QJsonObject &graph, bool muted)
 {
     if (graphHasTuner(graph))
         return false;
@@ -383,10 +385,15 @@ bool injectGraph(QJsonObject &graph)
             inputIndex = i;
             break;
         }
+    QJsonObject node{{QStringLiteral("id"), tuner},
+                     {QStringLiteral("type"), kTunerType},
+                     {QStringLiteral("meta"), QJsonObject{{kEphemeral, kTunerTag}}}};
+    // The switch, when the player has opened it: the node's own default is silence, so an open one
+    // has to say so or the rig would be muted by the node it was told not to mute.
+    if (!muted)
+        node.insert(kMute, 0);
     QJsonArray out = nodes;
-    out.insert(inputIndex + 1, QJsonObject{{QStringLiteral("id"), tuner},
-                                           {QStringLiteral("type"), kTunerType},
-                                           {QStringLiteral("meta"), QJsonObject{{kEphemeral, kTunerTag}}}});
+    out.insert(inputIndex + 1, node);
     graph.insert(kNodes, out);
 
     // Whatever left the input now leaves the tuner; the input itself feeds only the tuner.
@@ -470,15 +477,15 @@ bool hasTuner(const QJsonObject &document)
     return false;
 }
 
-int injectTuner(QJsonObject &document)
+int injectTuner(QJsonObject &document, bool muted)
 {
     if (!document.contains(kChains))
-        return injectGraph(document) ? 1 : 0;
+        return injectGraph(document, muted) ? 1 : 0;
     QJsonArray chains = document.value(kChains).toArray();
     int injected = 0;
     for (int i = 0; i < chains.size(); ++i) {
         QJsonObject chain = chains.at(i).toObject();
-        if (injectGraph(chain)) {
+        if (injectGraph(chain, muted)) {
             chains.replace(i, chain);
             ++injected;
         }

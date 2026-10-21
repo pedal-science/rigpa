@@ -82,6 +82,42 @@ private slots:
         QVERIFY(tuner.noteText().isEmpty());
     }
 
+    void theSwitchReachesTheEngine()
+    {
+        // The panel's toggle, through the path the view takes: `setTunerMuted` patches every chain's
+        // node, the engine answers `smooth` (no rebuild, so the reading does not restart), and the
+        // document the view would publish next carries the switch too.
+        QVERIFY(edits::hasTuner(engineDocument()));
+        QVERIFY(session.tunerMuted()); // a tuner comes up muted
+
+        QSignalSpy changed(&session, &RigSession::tunerMutedChanged);
+        session.setTunerMuted(false);
+        QCOMPARE(session.tunerMuted(), false);
+        QCOMPARE(changed.count(), 1);
+
+        QTRY_VERIFY_WITH_TIMEOUT(reportedMute(false), 10000);
+        // The mounted node in the published document says so as well: a later edit while the view is
+        // up must not silently close the switch again.
+        for (const QJsonValue &chain : engineDocument().value(QStringLiteral("chains")).toArray()) {
+            const QJsonArray nodes = chain.toObject().value(QStringLiteral("nodes")).toArray();
+            const QJsonObject node = nodes.at(1).toObject();
+            QCOMPARE(node.value(QStringLiteral("type")).toString(), QStringLiteral("nc.tuner"));
+            QCOMPARE(node.value(QStringLiteral("mute")).toInt(-1), 0);
+        }
+        // And the reading still arrives, which is the point of the switch.
+        QTRY_VERIFY_WITH_TIMEOUT(tuner.available() && tuner.running(), 10000);
+
+        session.setTunerMuted(true);
+        QTRY_VERIFY_WITH_TIMEOUT(reportedMute(true), 10000);
+        // The patch wrote the value into the engine's own document, so it is now explicit rather than
+        // absent -- what matters is that it says muted, not how it is spelled.
+        for (const QJsonValue &chain : engineDocument().value(QStringLiteral("chains")).toArray()) {
+            const QJsonObject node = chain.toObject().value(QStringLiteral("nodes")).toArray()
+                                       .at(1).toObject();
+            QVERIFY(node.value(QStringLiteral("mute")).toInt(1) != 0);
+        }
+    }
+
     void unmountingLeavesTheDocumentAsItWas()
     {
         tuner.setWatching(false);
@@ -100,6 +136,26 @@ private slots:
     }
 
 private:
+    /// Whether every chain's tuner reports the switch as `muted`, from the engine's `rig.state`.
+    bool reportedMute(bool muted)
+    {
+        QJsonArray nodes;
+        bool done = false;
+        engine.client()->request(QStringLiteral("rig.state"), {}, [&](const EngineReply &reply) {
+            done = true;
+            if (reply.ok)
+                nodes = reply.body.value(QStringLiteral("nodes")).toArray();
+        });
+        if (!QTest::qWaitFor([&] { return done; }, 10000) || nodes.size() != 2)
+            return false;
+        for (const QJsonValue &value : nodes) {
+            const QJsonObject state = value.toObject().value(QStringLiteral("state")).toObject();
+            if (state.value(QStringLiteral("mute")).toBool(true) != muted)
+                return false;
+        }
+        return true;
+    }
+
     // The engine's own parse of what it is running (`rig.get`), not rigpa's stripped copy.
     QJsonObject engineDocument()
     {

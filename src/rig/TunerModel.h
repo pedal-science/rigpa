@@ -48,6 +48,18 @@ class TunerModel : public QObject
     Q_PROPERTY(qreal levelFraction READ levelFraction NOTIFY changed) // 0…1 over -60…0 dBFS
     Q_PROPERTY(QString status READ status NOTIFY changed)       // one line, when there is no note
     Q_PROPERTY(QString a4Text READ a4Text NOTIFY changed)       // "A4 = 440 Hz"
+    /// The node's switch, from the engine's state: true means the output is silence. The view's
+    /// control is the player's intent (`RigSession::tunerMuted`); this is what the engine reports,
+    /// so a refused patch leaves the two visibly disagreeing rather than silently lying.
+    Q_PROPERTY(bool muted READ muted NOTIFY changed)
+    /// The strobe's three rows, as fractions of a band period, 0…1: partials 1, 2 and 4 of the note
+    /// (namchain docs/tuner.md, "The strobe"). The view multiplies by its own band width.
+    Q_PROPERTY(qreal rowPhase1 READ rowPhase1 NOTIFY strobeChanged)
+    Q_PROPERTY(qreal rowPhase2 READ rowPhase2 NOTIFY strobeChanged)
+    Q_PROPERTY(qreal rowPhase4 READ rowPhase4 NOTIFY strobeChanged)
+    /// How present the bands are, 0…1: they settle and fade with no note, as a mechanical strobe's
+    /// do, so "the strings have stopped" is visible rather than just a number going blank.
+    Q_PROPERTY(qreal strobeAlpha READ strobeAlpha NOTIFY strobeChanged)
 
 public:
     // The cents bar's coordinate space. The pedal's screen is a fixed 1920x480 and the whole UI
@@ -61,6 +73,12 @@ public:
     // One read per screen frame. A needle slower than about 12 Hz reads as broken, and 30 Hz is what
     // the panel draws at.
     static constexpr int kPollMs = 33;
+    // The strobe, ported from squatch-tuner's reference implementation (hosts/web/strobe.js): three
+    // rows for partials 1, 2 and 4, row k drifting k times as fast as the fundamental, at 0.5 band
+    // periods per second per cent -- and no faster than 12, which is what would alias at 60 fps.
+    static constexpr int kRowCount = 3;
+    static constexpr double kDriftPerCent = 0.5;
+    static constexpr double kMaxDrift = 12.0;
 
     explicit TunerModel(QObject *parent = nullptr);
 
@@ -86,12 +104,23 @@ public:
     qreal levelFraction() const { return m_levelFraction; }
     QString status() const { return m_status; }
     QString a4Text() const { return m_a4Text; }
+    bool muted() const { return m_muted; }
+    qreal rowPhase1() const { return qreal(m_phase[0]); }
+    qreal rowPhase2() const { return qreal(m_phase[1]); }
+    qreal rowPhase4() const { return qreal(m_phase[2]); }
+    qreal strobeAlpha() const { return qreal(m_activity); }
+
+    /// Advance the strobe by `seconds` and wrap each row. The view calls this on its frame timer,
+    /// which is what keeps the drift a function of wall time rather than of the polling rate: a
+    /// dropped frame must move the bands further, not slower.
+    Q_INVOKABLE void advance(qreal seconds);
 
     // For tests: digest one `rig.state` reply body, as `EngineClient` would deliver it.
     void applyReply(const QJsonObject &body);
 
 signals:
     void changed();
+    void strobeChanged();
 
 private:
     void request();
@@ -115,6 +144,11 @@ private:
     bool m_inTune = false;
     int m_needleX = kBarWidth / 2;
     qreal m_levelFraction = 0.0;
+    bool m_muted = true;
+    /// The cents the rows drift by, before clamping: kept so `advance` needs only the clock.
+    double m_cents = 0.0;
+    double m_phase[kRowCount] = {0.0, 0.0, 0.0};
+    double m_activity = 0.22;
 };
 
 } // namespace rigpa

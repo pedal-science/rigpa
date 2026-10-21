@@ -215,6 +215,28 @@ private slots:
         QCOMPARE(outOfTuner, fed);
     }
 
+    void injectCarriesTheSwitch()
+    {
+        // A muted tuner is the node's default, so the document says nothing: the short form is the
+        // common one, and a document a person reads is not cluttered with it.
+        QJsonObject muted = fixture("Clean");
+        QCOMPARE(edits::injectTuner(muted, true), 1);
+        const QJsonObject mutedNode = muted.value("chains").toArray().at(0).toObject()
+                                        .value("nodes").toArray().at(1).toObject();
+        QVERIFY(!mutedNode.contains("mute"));
+
+        // Open, it has to say so, or the rig would be muted by the node it was told not to mute.
+        QJsonObject open = fixture("Clean");
+        QCOMPARE(edits::injectTuner(open, false), 1);
+        const QJsonObject openNode = open.value("chains").toArray().at(0).toObject()
+                                       .value("nodes").toArray().at(1).toObject();
+        QCOMPARE(openNode.value("mute").toInt(-1), 0);
+
+        // And the switch is not part of the node's identity: stripping an open one still strips it.
+        QCOMPARE(edits::stripTuner(open), 1);
+        QVERIFY(!edits::hasTuner(open));
+    }
+
     void injectReachesEveryChain()
     {
         QJsonObject doc = fixture("Dual");

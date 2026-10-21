@@ -82,7 +82,12 @@ QJsonObject toJson(const RigDocument &doc);
 
 // Splices one tuner in after each chain's input, and repoints at it everything the input fed.
 // Returns how many chains gained one; 0 when the document already has them or has no input node.
-int injectTuner(QJsonObject &document);
+/// \param muted whether the node's output should be silence (its default) or its input.
+///
+/// The switch is a parameter of the node, so it is part of the document: mounting while the player
+/// has told the tuner to pass the signal through has to say so here, or the first publish after a
+/// toggle would mute the rig again (namchain docs/tuner.md, "The switch").
+int injectTuner(QJsonObject &document, bool muted = true);
 
 // The exact inverse: each consumer of a tuner's output is repointed at the tuner's predecessor, and
 // the tuner goes with its wires. Returns how many chains lost one.
