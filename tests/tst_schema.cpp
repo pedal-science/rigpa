@@ -30,6 +30,8 @@ const char *kSchema = R"({"ok":true,"nodes":[
   "params":[{"id":"bass","kind":"number","name":"Bass","default":0.0,"min":-18.0,"max":18.0,"unit":"dB",
      "rampable":true,"patchable":true,"hidden":false},
     {"id":"secret","kind":"number","hidden":true}]},
+ {"id":"nc.tuner","kind":"primitive","name":"Tuner","category":"utility","flags":{"bypassable":true,"in_palette":false},
+  "params":[]},
  {"id":"nc.delay","kind":"primitive","name":"Delay line","flags":{"bypassable":true},
   "params":[{"id":"samples","kind":"number","min":1.0,"max":null,"one_of":"delay time","unit":"samples","step":1.0},
     {"id":"ms","kind":"number","min":0.021,"max":null,"one_of":"delay time","unit":"ms"}]}
@@ -50,7 +52,7 @@ private slots:
     void parses()
     {
         const Schema s = schema();
-        QCOMPARE(s.typeIds().size(), 5);
+        QCOMPARE(s.typeIds().size(), 6);
         const NodeTypeSpec *biquad = s.type("nc.eq.biquad");
         QVERIFY(biquad);
         QVERIFY(!biquad->macro);
@@ -145,6 +147,21 @@ private slots:
         ramp.unit = "ms";
         QCOMPARE(NodeEditorModel::format(ramp, 5), QStringLiteral("5 ms"));
         QCOMPARE(NodeEditorModel::format(*s.type("nc.split")->param("outputs"), 3), QStringLiteral("3"));
+    }
+
+    void aTypeNoPaletteOffers()
+    {
+        // `flags.in_palette: false` is how the engine says a type is a client's node rather than a
+        // block -- nc.tuner, which rigpa mounts while its tuner view is up (namchain
+        // docs/tuner.md). A palette leaves it out; the editor can still draw it if it ever sees one.
+        const Schema s = schema();
+        const NodeTypeSpec *tuner = s.type("nc.tuner");
+        QVERIFY(tuner);
+        QVERIFY(!tuner->inPalette);
+        // Every other type, and an engine too old to publish the flag, is one a palette may offer.
+        QVERIFY(s.type("nc.eq.biquad")->inPalette);
+        QVERIFY(s.type("nc.nam")->inPalette);
+        QVERIFY(s.type("fx.amp.tonestack")->inPalette);
     }
 };
 
