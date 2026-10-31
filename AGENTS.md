@@ -65,4 +65,4 @@ window to stop it.
 - The protocol is namchain's (`../namchain/docs/daemon.md`); the rig library API is
   pedald's (`../pedal.project/docs/pedal-service.md`). Change them there first.
 
-System context (the pedal, how the repos fit together, the plan): `~/code.local/pedal/pedal.project`, starting at its `CLAUDE.md` and `docs/working-across-repos.md`.
+System context (the pedal, how the repos fit together, the plan): `~/code.local/pedal/pedal.project`, starting at its `AGENTS.md` and `docs/working-across-repos.md`.
