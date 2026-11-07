@@ -143,6 +143,9 @@ pedal.project D17 and `docs/pedal-owns-state.md`, milestones C1–C3):
   Choosing a rig loads it and goes home to Play.
 - **Edit**: the chain editor, with the bar's touch rules at the panel's tile size (132×72), and +,
   Undo and Redo in the top bar. **Tuner** and **Settings** as on the bar, arranged for the panel.
+- The overlays (node editor, picker, palette, rig dialog) are the bar's, filling the panel's
+  800×388; flowEQ's panel narrows its curve to 280 px and puts its eight controls four to a row
+  beside it. The rig dialog's name row sits above the 800 px keyboard.
 - Every view is one step from Play: back, or "‹ Play" in the top bar.
 
 | Where (compact) | rotary | apply | back |

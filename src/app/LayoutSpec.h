@@ -76,7 +76,7 @@ public:
     int tunerScaleHeight() const { return compact() ? 150 : 200; }
 
     // flowEQ's response curve (FlowEqModel's path is drawn at this size).
-    int flowEqCurveWidth() const { return compact() ? 460 : 560; }
+    int flowEqCurveWidth() const { return compact() ? 280 : 560; }
     int flowEqCurveHeight() const { return compact() ? 188 : 236; }
 
     // Qt Virtual Keyboard's width; its height follows (about 0.31 of it), so a dialog's name row

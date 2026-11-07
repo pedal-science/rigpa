@@ -25,10 +25,15 @@ Rectangle {
         "x": [0, 0], "y": [1, 0], "z": [2, 0], "strength": [3, 0],
         "in_db": [0, 1], "out_db": [1, 1], "extend": [2, 1], "auto_gain": [3, 1]
     })
-    readonly property real cellWidth: 194
+    // The bar's numbers; on the 800-wide panel the curve narrows (LayoutSpec's flowEQ curve size)
+    // and the eight controls share what is left, four to a row.
+    readonly property bool compact: App.layout.compact
+    readonly property real cellWidth: compact ? 96 : 194
     readonly property real cellHeight: 145
-    readonly property real gridX: 704
+    readonly property real gridX: compact ? 410 : 704
     readonly property real gridY: 70
+    readonly property real curveWidth: compact ? 380 : 660
+    readonly property real knobDiameter: compact ? 72 : 80
 
     color: Theme.background
 
@@ -45,7 +50,7 @@ Rectangle {
         id: curvePanel
         x: 24
         y: panel.gridY
-        width: 660
+        width: panel.curveWidth
         height: 290
         radius: Theme.radius
         color: Theme.panel
@@ -161,9 +166,12 @@ Rectangle {
             font.pixelSize: 14
         }
         Repeater {
+            // On the panel's narrower curve 10k and 20 kHz would overlap, so 10k keeps its gridline
+            // and loses its label.
             model: [{f: 20, label: "20 Hz", align: "left"}, {f: 100, label: "100", align: "center"},
-                    {f: 1000, label: "1k", align: "center"}, {f: 10000, label: "10k", align: "before"},
-                    {f: 20000, label: "20 kHz", align: "right"}]
+                    {f: 1000, label: "1k", align: "center"}]
+                   .concat(panel.compact ? [] : [{f: 10000, label: "10k", align: "before"}])
+                   .concat([{f: 20000, label: "20 kHz", align: "right"}])
             delegate: Text {
                 required property var modelData
                 readonly property real at: plot.width * Math.log(modelData.f / 20) / Math.log(1000)
@@ -205,7 +213,7 @@ Rectangle {
                 visible: control.kind === "knob"
                 anchors.horizontalCenter: parent.horizontalCenter
                 width: parent.width
-                diameter: 80
+                diameter: panel.knobDiameter
                 position: control.position
                 label: control.label
                 valueText: control.valueText

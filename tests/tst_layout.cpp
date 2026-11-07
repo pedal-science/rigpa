@@ -75,6 +75,9 @@ private slots:
         QCOMPARE(compact.contentHeight(), 480 - 52 - 40);
         QCOMPARE(compact.tunerBarWidth(), 560);
         QCOMPARE(compact.keyboardWidth(), 800);
+        // flowEQ's curve narrows so its eight controls fit beside it, four to a row.
+        QCOMPARE(compact.flowEqCurveWidth(), 280);
+        QCOMPARE(compact.flowEqCurveHeight(), 188);
         QCOMPARE(compact.editorStyle().tileWidth, 132.0);
         QCOMPARE(compact.editorStyle().tileHeight, 72.0);
         // The bar's type: the panel is as dense, so the same size reads the same.
