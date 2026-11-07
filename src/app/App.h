@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Config.h"
+#include "LayoutSpec.h"
+#include "pedald/PedaldStatus.h"
+#include "rig/PlayModel.h"
 #include "engine/EngineSession.h"
 #include "library/Library.h"
 #include "library/PickerModel.h"
@@ -41,6 +44,11 @@ class App : public QObject
     Q_PROPERTY(rigpa::PaletteModel *palette READ palette CONSTANT)
     Q_PROPERTY(rigpa::RigManager *manager READ manager CONSTANT)
     Q_PROPERTY(rigpa::TunerModel *tuner READ tuner CONSTANT)
+    // The layout's sizes (LayoutSpec), and the compact layout's two extra models: they are set
+    // before the views are made, so they are constant to QML.
+    Q_PROPERTY(rigpa::LayoutSpec *layout READ layout CONSTANT)
+    Q_PROPERTY(rigpa::PlayModel *play READ play CONSTANT)
+    Q_PROPERTY(rigpa::PedaldStatus *pedal READ pedal CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
@@ -65,6 +73,12 @@ public:
     PaletteModel *palette() const { return m_palette; }
     RigManager *manager() const { return m_manager; }
     TunerModel *tuner() const { return m_tuner; }
+    LayoutSpec *layout() const { return m_layout; }
+    PlayModel *play() const { return m_play; }
+    PedaldStatus *pedal() const { return m_pedal; }
+    void setLayout(LayoutSpec *layout) { m_layout = layout; }
+    void setPlay(PlayModel *play) { m_play = play; }
+    void setPedal(PedaldStatus *pedal) { m_pedal = pedal; }
 
     // The header's +: the palette, over the rig view. What is chosen goes in after the selected
     // block (in its lane, if it is in one), or at the end of the first chain.
@@ -91,6 +105,9 @@ private:
     PaletteModel *m_palette;
     RigManager *m_manager;
     TunerModel *m_tuner;
+    LayoutSpec *m_layout = nullptr;
+    PlayModel *m_play = nullptr;
+    PedaldStatus *m_pedal = nullptr;
 };
 
 } // namespace rigpa

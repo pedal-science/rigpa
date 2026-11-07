@@ -20,6 +20,7 @@ qt_add_qml_module(rigpa_core
         src/app/DevInput.cpp src/app/DevInput.h
         src/app/DemoAnimator.cpp src/app/DemoAnimator.h
         src/app/FocusRing.cpp src/app/FocusRing.h
+        src/app/LayoutSpec.cpp src/app/LayoutSpec.h
         src/app/Navigator.cpp src/app/Navigator.h
         src/app/QuitOnSignal.cpp src/app/QuitOnSignal.h
         src/app/Settings.cpp src/app/Settings.h
@@ -34,9 +35,11 @@ qt_add_qml_module(rigpa_core
         src/library/Sniff.cpp src/library/Sniff.h
         src/layout/Flow.cpp src/layout/Flow.h
         src/pedald/PedaldClient.cpp src/pedald/PedaldClient.h
+        src/pedald/PedaldStatus.cpp src/pedald/PedaldStatus.h
         src/rig/FlowEqModel.cpp src/rig/FlowEqModel.h
         src/rig/NodeEditorModel.cpp src/rig/NodeEditorModel.h
         src/rig/PaletteModel.cpp src/rig/PaletteModel.h
+        src/rig/PlayModel.cpp src/rig/PlayModel.h
         src/rig/RigDocument.cpp src/rig/RigDocument.h
         src/rig/RigEdits.cpp src/rig/RigEdits.h
         src/rig/RigEditorModel.cpp src/rig/RigEditorModel.h
@@ -76,6 +79,16 @@ qt_add_qml_module(rigpa
         qml/views/Picker.qml
         qml/views/AddPanel.qml
         qml/views/RigDialog.qml
+        qml/views/TunerNote.qml
+        qml/views/TunerScale.qml
+        qml/views/TunerStrobe.qml
+        qml/compact/CompactShell.qml
+        qml/compact/CompactTopBar.qml
+        qml/compact/PlayView.qml
+        qml/compact/RigsView.qml
+        qml/compact/EditView.qml
+        qml/compact/CompactTunerView.qml
+        qml/compact/CompactSettingsView.qml
         qml/controls/MenuButton.qml
         qml/controls/Panel.qml
         qml/controls/ValueBar.qml

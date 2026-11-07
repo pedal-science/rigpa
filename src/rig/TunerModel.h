@@ -96,7 +96,10 @@ public:
     QString levelText() const { return m_levelText; }
     bool inTune() const { return m_inTune; }
     int needleX() const { return m_needleX; }
-    int barWidth() const { return kBarWidth; }
+    int barWidth() const { return m_barWidth; }
+    // The scale's width in pixels: the layout's (720 on the bar, 560 on the 4.3" panel). Set once,
+    // before the view is made.
+    void setBarWidth(int width);
     int maxCents() const { return kMaxCents; }
     int inTuneCents() const { return kInTuneCents; }
     // The input's level as a bar's fill, over the range a meter shows. Layout maths in C++, as
@@ -142,6 +145,7 @@ private:
     QString m_a4Text;
     QString m_status;
     bool m_inTune = false;
+    int m_barWidth = kBarWidth;
     int m_needleX = kBarWidth / 2;
     qreal m_levelFraction = 0.0;
     bool m_muted = true;

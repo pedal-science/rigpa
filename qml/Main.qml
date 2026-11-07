@@ -3,11 +3,11 @@ import QtQuick.VirtualKeyboard
 import QtQuick.Window
 import Rigpa.Core
 
-// The window, and the one transform between the 1920×480 design and the real screen: on the
-// pedal the panel is natively 480×1920, so the screen is rotated (display.rotation); on the Mac it
-// is scaled to fit the window, which opens at display.scale (0 = fit its screen) and can be resized
-// or made full screen — a fixed size is what greys out macOS's green button. Touch follows the
-// transform by itself.
+// The window, and the one transform between the layout's design (1920×480, or 800×480 for the
+// compact layout) and the real screen: the bar is natively 480×1920, so its screen is rotated
+// (display.rotation); on the Mac the design is scaled to fit the window, which opens at
+// display.scale (0 = fit its screen) and can be resized or made full screen — a fixed size is what
+// greys out macOS's green button. Touch follows the transform by itself.
 Window {
     id: window
 
@@ -43,12 +43,20 @@ Window {
     Item {
         width: Theme.screenWidth
         height: Theme.screenHeight
-        Shell { anchors.fill: parent }
+        // The layout's set of views: the bar's, or the 4.3" panel's (LayoutSpec, display.layout).
+        Loader {
+            anchors.fill: parent
+            sourceComponent: App.layout.compact ? compactShell : wideShell
+        }
+        Component { id: wideShell; Shell {} }
+        Component { id: compactShell; CompactShell {} }
         // Qt Virtual Keyboard, along the bottom while a text field has focus.
         InputPanel {
             id: keyboard
             z: 100
-            width: 880 // about 276 tall: clear of a dialog's name row above it
+            // 880 on the bar (about 276 tall) and the panel's whole 800 (about 250): either way clear
+            // of a dialog's name row above it.
+            width: App.layout.keyboardWidth
             x: (parent.width - width) / 2
             y: active ? parent.height - height : parent.height
             visible: active

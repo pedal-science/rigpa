@@ -19,6 +19,10 @@ rigpa_test(tst_tuner)
 rigpa_test(tst_rig)
 rigpa_test(tst_schema)
 rigpa_test(tst_edits)
+rigpa_test(tst_layout)
+# It runs the app once, to see a bad --layout refused.
+target_compile_definitions(tst_layout PRIVATE RIGPA_BINARY="$<TARGET_FILE:rigpa>")
+add_dependencies(tst_layout rigpa)
 rigpa_test(tst_quitonsignal)
 # It also runs the app itself, to send it SIGTERM.
 target_compile_definitions(tst_quitonsignal PRIVATE RIGPA_BINARY="$<TARGET_FILE:rigpa>")
@@ -34,7 +38,9 @@ rigpa_test(tst_manage_live)
 rigpa_test(tst_demo_live)
 rigpa_test(tst_floweq_live)
 rigpa_test(tst_tuner_live)
+rigpa_test(tst_play_live)
 set(RIGPA_PEDAL_ROOTFS "${PROJECT_SOURCE_DIR}/../pedal.project/devices/common/rootfs" CACHE PATH
     "pedal.project's Core host tree, whose pedald the rig-management tests run")
-set_tests_properties(tst_engine_live tst_rig_live tst_edit_live tst_manage_live tst_demo_live tst_floweq_live tst_tuner_live PROPERTIES ENVIRONMENT
+set_tests_properties(tst_engine_live tst_rig_live tst_edit_live tst_manage_live tst_demo_live tst_floweq_live tst_tuner_live
+                     tst_play_live PROPERTIES ENVIRONMENT
     "RIGPA_NAMCHAIND=${RIGPA_NAMCHAIN_BUILD}/namchaind;RIGPA_NAMCHAIN_MODELS=${RIGPA_NAMCHAIN_BUILD}/generated;RIGPA_PEDAL_ROOTFS=${RIGPA_PEDAL_ROOTFS}")

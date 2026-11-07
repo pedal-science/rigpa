@@ -38,6 +38,16 @@ TunerModel::TunerModel(QObject *parent) : QObject(parent)
     clear();
 }
 
+void TunerModel::setBarWidth(int width)
+{
+    if (width <= 0 || width == m_barWidth)
+        return;
+    // Keep the needle where it points: the same cents on the new scale.
+    m_needleX = m_needleX * width / m_barWidth;
+    m_barWidth = width;
+    emit changed();
+}
+
 void TunerModel::setWatching(bool watching)
 {
     if (watching == m_watching)
@@ -80,7 +90,7 @@ void TunerModel::clear()
     m_levelText.clear();
     m_a4Text.clear();
     m_inTune = false;
-    m_needleX = kBarWidth / 2;
+    m_needleX = m_barWidth / 2;
     m_levelFraction = 0.0;
     m_muted = true;
     m_cents = 0.0;
@@ -120,7 +130,7 @@ void TunerModel::applyReply(const QJsonObject &body)
     if (!std::isfinite(cents))
         cents = 0.0;
     cents = std::max(-double(kMaxCents), std::min(double(kMaxCents), cents));
-    const int needle = kBarWidth / 2 + int(std::lround(cents / double(kMaxCents) * (kBarWidth / 2)));
+    const int needle = m_barWidth / 2 + int(std::lround(cents / double(kMaxCents) * (m_barWidth / 2)));
 
     QString noteText, centsText, hzText, levelText, a4Text;
     if (valid) {

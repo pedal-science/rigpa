@@ -17,7 +17,8 @@ namespace rigpa {
 //     "pedald_config": "/etc/pedal/pedald.json",       // its http_port (vip)
 //     "pedald": { "host": "127.0.0.1", "port": 47820 },  // overrides
 //     "settings_file": "/var/lib/rigpa/settings.ini",
-//     "display": { "rotation": 90, "scale": 1.0 },   // scale 0 (or absent): fit the screen
+//     "display": { "rotation": 90, "scale": 1.0,     // scale 0 (or absent): fit the screen
+//                  "layout": "wide" },               // or "compact": the 800×480 panel's views
 //     "dev": { "rotary_invert": false }
 //   }
 class Config : public QObject
@@ -27,6 +28,7 @@ class Config : public QObject
     QML_UNCREATABLE("The app owns the config")
     Q_PROPERTY(int rotation READ rotation CONSTANT)
     Q_PROPERTY(double scale READ scale CONSTANT)
+    Q_PROPERTY(QString layout READ layout CONSTANT)
     Q_PROPERTY(QString path READ path CONSTANT)
 
 public:
@@ -44,6 +46,11 @@ public:
     QString settingsFile() const;
     int rotation() const { return m_rotation; }
     double scale() const { return m_scale; }
+    // Which set of views: "wide" (the 1920×480 bar, the default) or "compact" (the 800×480 panel).
+    // --layout overrides the file; an unknown name is refused, as a bad rotation is.
+    QString layout() const { return m_layout; }
+    bool setLayout(const QString &layout, QString *error);
+    static bool isLayout(const QString &layout);
     bool rotaryInverted() const { return m_rotaryInverted; }
 
     // namchaind's address, and its token: from $CREDENTIALS_DIRECTORY/token when systemd gave one
@@ -68,6 +75,7 @@ private:
     QString m_settingsFile;
     int m_rotation = 0;
     double m_scale = 0;
+    QString m_layout = QStringLiteral("wide");
     bool m_rotaryInverted = false;
     QString m_engineHost = QStringLiteral("127.0.0.1");
     quint16 m_enginePort = 47810;

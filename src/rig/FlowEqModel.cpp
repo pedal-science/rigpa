@@ -152,8 +152,8 @@ void FlowEqModel::setCurve(const QVariantList &points)
     m_dbBottom = -bound;
     m_points = points;
 
-    const double width = kCurveWidth;
-    const double height = kCurveHeight;
+    const double width = m_curveWidth;
+    const double height = m_curveHeight;
     const double span = double(m_dbTop - m_dbBottom);
     QString path;
     path.reserve(points.size() * 14 + 8);
@@ -169,6 +169,14 @@ void FlowEqModel::setCurve(const QVariantList &points)
     m_fill = path + QStringLiteral("L") + QString::number(width, 'f', 0) + u' '
              + QString::number(height, 'f', 0) + QStringLiteral("L0 ") + QString::number(height, 'f', 0)
              + QStringLiteral("Z");
+}
+
+void FlowEqModel::setCurveSize(int width, int height)
+{
+    if (width <= 0 || height <= 0)
+        return;
+    m_curveWidth = width;
+    m_curveHeight = height;
 }
 
 } // namespace rigpa

@@ -29,6 +29,7 @@ Rectangle {
     }
 
     Column {
+        id: column
         x: 40; y: 18
         width: Math.min(1000, parent.width - 80)
         spacing: 14
@@ -56,7 +57,8 @@ Rectangle {
             TextField {
                 id: field
                 visible: dialog.asksName
-                width: 640
+                // 640 on the bar; on the 800-wide panel, what the two buttons leave.
+                width: Math.min(640, column.width - confirm.width - cancel.width - 28)
                 height: 52
                 font.pixelSize: Theme.fontLarge
                 color: Theme.text
@@ -73,6 +75,7 @@ Rectangle {
                 onAccepted: dialog.manager.confirm(text)
             }
             HeaderButton {
+                id: confirm
                 anchors.verticalCenter: parent.verticalCenter
                 label: dialog.manager.dialog === "delete" ? qsTr("Delete")
                      : dialog.manager.dialog === "rename" ? qsTr("Rename")
@@ -82,6 +85,7 @@ Rectangle {
                 onClicked: dialog.manager.confirm(field.text)
             }
             HeaderButton {
+                id: cancel
                 anchors.verticalCenter: parent.verticalCenter
                 label: qsTr("Cancel")
                 enabled: !dialog.manager.busy

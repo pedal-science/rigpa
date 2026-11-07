@@ -61,6 +61,8 @@ bool Config::loadJson(const QJsonObject &root, QString *error)
         *error = QStringLiteral("display.scale must be between 0 (fit) and 4");
         return false;
     }
+    if (!setLayout(display.value(QStringLiteral("layout")).toString(QStringLiteral("wide")), error))
+        return false;
     // The engine: its own config file first (one home per fact, as pedald reads it), then any
     // explicit values. On the pedal the engine's file is the default, where it exists (as pedald's
     // is, below): a host without one isn't a pedal, and starts with the built-in defaults.
@@ -127,6 +129,21 @@ bool Config::loadJson(const QJsonObject &root, QString *error)
 
     m_rotaryInverted = root.value(QStringLiteral("dev")).toObject()
                            .value(QStringLiteral("rotary_invert")).toBool(false);
+    return true;
+}
+
+bool Config::isLayout(const QString &layout)
+{
+    return layout == QLatin1String("wide") || layout == QLatin1String("compact");
+}
+
+bool Config::setLayout(const QString &layout, QString *error)
+{
+    if (!isLayout(layout)) {
+        *error = QStringLiteral("display.layout must be \"wide\" or \"compact\", not \"%1\"").arg(layout);
+        return false;
+    }
+    m_layout = layout;
     return true;
 }
 

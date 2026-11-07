@@ -79,6 +79,9 @@ public:
 
     qreal availableWidth() const { return m_availableWidth; }
     void setAvailableWidth(qreal width);
+    // The tiles' sizes and spacing: the layout's (LayoutSpec::editorStyle). Lays the rig out again.
+    const Style &style() const { return m_style; }
+    void setStyle(const Style &style);
     qreal contentWidth() const { return m_contentWidth; }
     qreal contentHeight() const { return m_contentHeight; }
     int selectableCount() const { return m_selectable; }

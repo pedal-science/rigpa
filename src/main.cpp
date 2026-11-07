@@ -2,6 +2,7 @@
 #include "app/Config.h"
 #include "app/DemoAnimator.h"
 #include "app/DevInput.h"
+#include "app/LayoutSpec.h"
 #include "app/Navigator.h"
 #include "app/QuitOnSignal.h"
 #include "app/Settings.h"
@@ -9,8 +10,10 @@
 #include "library/Library.h"
 #include "library/PickerModel.h"
 #include "pedald/PedaldClient.h"
+#include "pedald/PedaldStatus.h"
 #include "rig/NodeEditorModel.h"
 #include "rig/PaletteModel.h"
+#include "rig/PlayModel.h"
 #include "rig/RigManager.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
@@ -53,8 +56,13 @@ int main(int argc, char *argv[])
         QStringLiteral("Render, save the window to <file> (PNG) once it has settled, and quit."),
         QStringLiteral("file"));
     const QCommandLineOption viewOption(QStringLiteral("view"),
-        QStringLiteral("Start in this main view: rig, browse, settings or tuner."),
+        QStringLiteral("Start in this main view: rig, browse, settings or tuner; with the compact "
+                       "layout also play (its home), rigs or edit (the chain editor)."),
         QStringLiteral("view"));
+    const QCommandLineOption layoutOption(QStringLiteral("layout"),
+        QStringLiteral("The set of views: wide (the 1920x480 bar) or compact (the 800x480 panel). "
+                       "Overrides display.layout in the config."),
+        QStringLiteral("layout"));
     const QCommandLineOption inputOption(QStringLiteral("input"),
         QStringLiteral("Replay hardware controls once loaded (for demos and checks): '>' and '<' turn "
                        "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette), 'N', 'R', 'C' "
@@ -67,22 +75,26 @@ int main(int argc, char *argv[])
     const QCommandLineOption demoAnimateOption(QStringLiteral("demo-animate"),
         QStringLiteral("For the D14 soak: keep the screen busy for as long as rigpa runs, lifting each "
                        "node in turn and sweeping it through the editor, never dropping it."));
-    parser.addOptions({configOption, screenshotOption, viewOption, inputOption, demoDragOption, demoAnimateOption});
+    parser.addOptions({configOption, screenshotOption, viewOption, layoutOption, inputOption, demoDragOption,
+                       demoAnimateOption});
     parser.process(app);
 
     rigpa::Config config;
     QString error;
     const QString configPath = parser.isSet(configOption) ? parser.value(configOption)
                                                            : rigpa::Config::defaultPath();
-    if (!config.load(configPath, &error)) {
+    if (!config.load(configPath, &error)
+        || (parser.isSet(layoutOption) && !config.setLayout(parser.value(layoutOption), &error))) {
         std::fprintf(stderr, "rigpa: %s\n", qPrintable(error));
         return 2;
     }
+    rigpa::LayoutSpec layout(rigpa::LayoutSpec::kindNamed(config.layout()));
 
     const QString settingsPath = config.settingsFile();
     QDir().mkpath(QFileInfo(settingsPath).absolutePath());
     rigpa::Settings settings(settingsPath);
     rigpa::Navigator nav;
+    nav.setCompact(layout.compact());
     rigpa::EngineSession engineSession;
     rigpa::Library library;
     library.setRoots(config.modelsRoot(), config.irsRoot());
@@ -97,8 +109,17 @@ int main(int argc, char *argv[])
     rigpa::RigManager manager(&engineSession, &rigSession, &rigs, &pedald);
     rigpa::TunerModel tuner;
     tuner.setClient(engineSession.client());
+    // The sizes the models lay out with are the layout's.
+    editor.setStyle(layout.editorStyle());
+    tuner.setBarWidth(layout.tunerBarWidth());
+    nodeEditor.flowEq()->setCurveSize(layout.flowEqCurveWidth(), layout.flowEqCurveHeight());
+    rigpa::PlayModel play(&rigSession, &editor, &engineSession);
+    rigpa::PedaldStatus pedalStatus(&pedald);
     rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor,
                          &nodeEditor, &picker, &palette, &manager, &tuner);
+    appObject.setLayout(&layout);
+    appObject.setPlay(&play);
+    appObject.setPedal(&pedalStatus);
 
     // The rotary and apply in rig view: load a rig from the list.
     QObject::connect(&nav, &rigpa::Navigator::rigLoadRequested, &rigSession, &rigpa::RigSession::loadRig);
@@ -111,6 +132,9 @@ int main(int argc, char *argv[])
     engineSession.start(config.engineHost(), config.enginePort(), token, tokenProblem);
     pedald.setEndpoint(config.pedaldHost(), config.pedaldPort(), token);
     rigs.start();
+    // Only the play view shows where the footswitches are.
+    if (layout.compact())
+        pedalStatus.start();
 
     rigpa::DevInput devInput;
     devInput.setInverted(config.rotaryInverted());
@@ -123,12 +147,19 @@ int main(int argc, char *argv[])
 
     if (parser.isSet(viewOption)) {
         const QString view = parser.value(viewOption);
-        if (view == QLatin1String("browse"))
+        // The compact layout has no browse view (its library is the picker's).
+        if (view == QLatin1String("browse") && !layout.compact())
             nav.showMainView(rigpa::Navigator::BrowseView);
         else if (view == QLatin1String("settings"))
             nav.showMainView(rigpa::Navigator::SettingsView);
         else if (view == QLatin1String("tuner"))
             nav.showMainView(rigpa::Navigator::TunerView);
+        else if (view == QLatin1String("rig") || view == QLatin1String("edit"))
+            nav.showMainView(rigpa::Navigator::RigView);
+        else if (layout.compact() && view == QLatin1String("play"))
+            nav.showMainView(rigpa::Navigator::PlayView);
+        else if (layout.compact() && view == QLatin1String("rigs"))
+            nav.showMainView(rigpa::Navigator::RigsView);
     }
 
     QQmlApplicationEngine engine;

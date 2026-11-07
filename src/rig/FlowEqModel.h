@@ -70,8 +70,10 @@ public:
     QString fillPath() const { return m_fill; }
     int dbTop() const { return m_dbTop; }
     int dbBottom() const { return m_dbBottom; }
-    int curveWidth() const { return kCurveWidth; }
-    int curveHeight() const { return kCurveHeight; }
+    int curveWidth() const { return m_curveWidth; }
+    int curveHeight() const { return m_curveHeight; }
+    // The curve's size in pixels: the layout's (560×236 on the bar). Set once, before the view is made.
+    void setCurveSize(int width, int height);
     QString gainText() const { return m_gainText; }
     bool autoGain() const { return m_autoGain; }
     QString modelName() const { return m_model; }
@@ -87,6 +89,8 @@ private:
     void setCurve(const QVariantList &points);
 
     EngineClient *m_client = nullptr;
+    int m_curveWidth = kCurveWidth;
+    int m_curveHeight = kCurveHeight;
     QTimer m_timer;
     QElapsedTimer m_sinceRequest;
     QString m_element;

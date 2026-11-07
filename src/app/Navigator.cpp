@@ -4,8 +4,17 @@ namespace rigpa {
 
 Navigator::Navigator(QObject *parent) : QObject(parent)
 {
-    for (FocusRing *ring : {&m_rigList, &m_rigEditor, &m_browse, &m_settings, &m_tuner})
+    for (FocusRing *ring : {&m_rigList, &m_rigEditor, &m_browse, &m_settings, &m_tuner, &m_play})
         watch(ring);
+}
+
+void Navigator::setCompact(bool compact)
+{
+    if (compact == m_compact)
+        return;
+    m_compact = compact;
+    emit layoutChanged();
+    showMainView(compact ? PlayView : RigView);
 }
 
 Navigator::Overlay Navigator::overlay() const
@@ -19,7 +28,12 @@ FocusRing *Navigator::activeRing()
         return m_overlays.last().ring;
     switch (m_mainView) {
     case RigView:
-        return m_rigFocus == RigListFocus ? &m_rigList : &m_rigEditor;
+        // Compact's rig view is the chain editor alone: its rig list is the Rigs view.
+        return m_rigFocus == RigListFocus && !m_compact ? &m_rigList : &m_rigEditor;
+    case RigsView:
+        return &m_rigList;
+    case PlayView:
+        return &m_play;
     case BrowseView:
         return &m_browse;
     case SettingsView:
@@ -45,6 +59,15 @@ void Navigator::rotate(int steps)
 
 void Navigator::apply()
 {
+    // Compact's Rigs view: apply on a rig loads it and goes home to Play; its buttons (New, Rename,
+    // Copy, Delete) are actions, which the view answers through the ring's own signal.
+    if (m_overlays.isEmpty() && m_compact && m_mainView == RigsView && !m_rigList.isEmpty()
+        && m_rigList.highlightedKind() == FocusRing::Kind::Item) {
+        const int index = m_rigList.highlight();
+        showMainView(PlayView);
+        emit rigLoadRequested(index);
+        return;
+    }
     if (m_overlays.isEmpty() && m_mainView == RigView) {
         if (m_rigFocus == RigEditorFocus) {
             if (!m_rigEditor.isEmpty())
@@ -95,6 +118,12 @@ void Navigator::back()
         closeOverlay();
         return;
     }
+    // Compact: every view is one step from Play, and back on Play does nothing (it is the top).
+    if (m_compact) {
+        if (m_mainView != PlayView)
+            showMainView(PlayView);
+        return;
+    }
     switch (m_mainView) {
     case RigView:
         if (m_rigFocus == RigEditorFocus)
@@ -103,6 +132,8 @@ void Navigator::back()
     case BrowseView:
     case SettingsView:
     case TunerView:
+    case PlayView:
+    case RigsView:
         showMainView(RigView);
         break;
     }
@@ -209,7 +240,10 @@ QString Navigator::applyHint()
     if (!ring || ring->isEmpty())
         return {};
     if (m_overlays.isEmpty() && m_mainView == RigView)
-        return m_rigFocus == RigEditorFocus ? tr("edit node") : tr("load rig");
+        return m_rigFocus == RigEditorFocus || m_compact ? tr("edit node") : tr("load rig");
+    if (m_overlays.isEmpty() && m_mainView == RigsView && !ring->editing()
+        && ring->highlightedKind() == FocusRing::Kind::Item)
+        return tr("load rig");
     if (ring->editing())
         return tr("done");
     switch (ring->highlightedKind()) {
@@ -232,12 +266,16 @@ QString Navigator::backHint()
         return tr("done");
     if (!m_overlays.isEmpty())
         return tr("close");
+    if (m_compact)
+        return m_mainView == PlayView ? QString() : tr("play");
     switch (m_mainView) {
     case RigView:
         return m_rigFocus == RigEditorFocus ? tr("rig list") : QString();
     case BrowseView:
     case SettingsView:
     case TunerView:
+    case PlayView:
+    case RigsView:
         return tr("rig view");
     }
     return {};

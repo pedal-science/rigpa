@@ -35,6 +35,36 @@ private slots:
         QVERIFY(config.rotaryInverted());
     }
 
+    void theLayoutIsWideUnlessTheFileSaysCompact()
+    {
+        Config config;
+        QString error;
+        QVERIFY2(config.loadJson({}, &error), qPrintable(error));
+        QCOMPARE(config.layout(), QStringLiteral("wide"));
+        QVERIFY2(config.loadJson(QJsonDocument::fromJson(R"({"display": {"layout": "compact"}})").object(), &error),
+                 qPrintable(error));
+        QCOMPARE(config.layout(), QStringLiteral("compact"));
+    }
+
+    void anUnknownLayoutIsRefused()
+    {
+        Config config;
+        QString error;
+        QVERIFY(!config.loadJson(QJsonDocument::fromJson(R"({"display": {"layout": "tiny"}})").object(), &error));
+        QVERIFY2(error.contains(QStringLiteral("display.layout")), qPrintable(error));
+    }
+
+    void theCommandLineOverridesTheFilesLayout()
+    {
+        Config config;
+        QString error;
+        QVERIFY(config.loadJson(QJsonDocument::fromJson(R"({"display": {"layout": "compact"}})").object(), &error));
+        QVERIFY(config.setLayout(QStringLiteral("wide"), &error));
+        QCOMPARE(config.layout(), QStringLiteral("wide"));
+        QVERIFY(!config.setLayout(QStringLiteral("bar"), &error));
+        QCOMPARE(config.layout(), QStringLiteral("wide")); // a refusal changes nothing
+    }
+
     void readsTheEnginesOwnConfig()
     {
         QTemporaryDir dir;

@@ -1,17 +1,18 @@
 pragma Singleton
 import QtQuick
+import Rigpa.Core
 
-// The look, in one place. Sizes are the spec's (docs/spec.md, Layout), in pixels of the 1920×480
-// screen; on the Mac the whole screen is scaled, never these.
+// The look, in one place. Sizes are the layout's (LayoutSpec: the spec's 1920×480 bar, or the
+// 800×480 panel), in pixels of that screen; on the Mac the whole screen is scaled, never these.
 QtObject {
-    readonly property int screenWidth: 1920
-    readonly property int screenHeight: 480
-    readonly property int menuWidth: 96
-    readonly property int headerHeight: 64
-    readonly property int footerHeight: 48
-    readonly property int infoWidth: 320
-    readonly property int contentHeight: screenHeight - headerHeight - footerHeight // 368
-    readonly property int mainWidth: screenWidth - menuWidth - infoWidth             // 1504
+    readonly property int screenWidth: App.layout.screenWidth
+    readonly property int screenHeight: App.layout.screenHeight
+    readonly property int menuWidth: App.layout.menuWidth
+    readonly property int headerHeight: App.layout.headerHeight
+    readonly property int footerHeight: App.layout.footerHeight
+    readonly property int infoWidth: App.layout.infoWidth
+    readonly property int contentHeight: screenHeight - headerHeight - footerHeight // 368 wide, 388 compact
+    readonly property int mainWidth: screenWidth - menuWidth - infoWidth             // 1504 wide, 800 compact
 
     readonly property color background: "#121212"
     readonly property color menuBackground: "#0b0b0b"

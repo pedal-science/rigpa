@@ -14,6 +14,10 @@ namespace rigpa {
 //
 // Touch never goes through here except to move the highlight (any touch moves the hardware
 // highlight to what was touched), so the two input paths never disagree.
+//
+// The compact layout (the 4.3" panel, LayoutSpec) has its own rows in that table: the play view is
+// home and back always returns to it, the rig list is a view of its own (Rigs) whose rows load a
+// rig and land on Play, and the rig view is the chain editor alone.
 class Navigator : public QObject
 {
     Q_OBJECT
@@ -27,6 +31,8 @@ class Navigator : public QObject
     Q_PROPERTY(rigpa::FocusRing *browse READ browse CONSTANT)
     Q_PROPERTY(rigpa::FocusRing *settings READ settings CONSTANT)
     Q_PROPERTY(rigpa::FocusRing *tuner READ tuner CONSTANT)
+    Q_PROPERTY(rigpa::FocusRing *play READ play CONSTANT)
+    Q_PROPERTY(bool compact READ compact NOTIFY layoutChanged)
     Q_PROPERTY(rigpa::FocusRing *activeRing READ activeRing NOTIFY activeRingChanged)
     Q_PROPERTY(QString applyHint READ applyHint NOTIFY hintsChanged)
     Q_PROPERTY(QString backHint READ backHint NOTIFY hintsChanged)
@@ -35,7 +41,8 @@ public:
     // The tuner is a main view of its own: it takes the content area, and it is the one view
     // that changes what the engine is running (it mounts a node while it is up -- see
     // App's mainViewChanged connection and docs/tuner.md).
-    enum MainView { RigView, BrowseView, SettingsView, TunerView };
+    // PlayView and RigsView are the compact layout's (its home, and its full-screen rig list).
+    enum MainView { RigView, BrowseView, SettingsView, TunerView, PlayView, RigsView };
     Q_ENUM(MainView)
     enum RigFocus { RigListFocus, RigEditorFocus };
     Q_ENUM(RigFocus)
@@ -53,6 +60,12 @@ public:
     FocusRing *browse() { return &m_browse; }
     FocusRing *settings() { return &m_settings; }
     FocusRing *tuner() { return &m_tuner; }
+    // The play view's stops: its block chips, then its buttons (the view sets the kinds).
+    FocusRing *play() { return &m_play; }
+    // The compact layout's rows of the table; set once, before the views are made. Compact starts
+    // in the play view.
+    bool compact() const { return m_compact; }
+    void setCompact(bool compact);
     FocusRing *activeRing();
     QString applyHint();
     QString backHint();
@@ -79,6 +92,7 @@ signals:
     void overlayChanged();
     void activeRingChanged();
     void hintsChanged();
+    void layoutChanged();
     // Apply in the rig editor: open the editor for this node.
     void nodeEditorRequested(int index);
     // Apply in the rig list: load this rig (focus has already moved to its editor).
@@ -96,6 +110,7 @@ private:
     void changed();
 
     MainView m_mainView = RigView;
+    bool m_compact = false;
     RigFocus m_rigFocus = RigEditorFocus;
     QList<Layer> m_overlays;
     FocusRing m_rigList;
@@ -103,6 +118,7 @@ private:
     FocusRing m_browse;
     FocusRing m_settings;
     FocusRing m_tuner;
+    FocusRing m_play;
 };
 
 } // namespace rigpa

@@ -194,6 +194,112 @@ private slots:
         QCOMPARE(nav.activeRing(), nav.settings());
     }
 
+    // The compact layout's rows (docs/spec.md, "The compact layout"): Play is home.
+    void compactStartsOnPlay()
+    {
+        Navigator nav;
+        nav.setCompact(true);
+        QVERIFY(nav.compact());
+        QCOMPARE(nav.mainView(), Navigator::PlayView);
+        QCOMPARE(nav.activeRing(), nav.play());
+        QCOMPARE(nav.backHint(), QString()); // nothing above Play
+    }
+
+    void compactPlayRow()
+    {
+        Navigator nav;
+        nav.setCompact(true);
+        nav.play()->setKinds({"toggle", "toggle", "action", "action", "action", "action"});
+        nav.play()->setCount(6);
+        QSignalSpy toggled(nav.play(), &FocusRing::toggled);
+        QSignalSpy activated(nav.play(), &FocusRing::activated);
+        nav.rotate(1);
+        QCOMPARE(nav.applyHint(), QStringLiteral("toggle"));
+        nav.apply();
+        QCOMPARE(toggled.count(), 1);
+        QCOMPARE(toggled.at(0).at(0).toInt(), 1);
+        nav.rotate(2);
+        QCOMPARE(nav.applyHint(), QStringLiteral("press"));
+        nav.apply();
+        QCOMPARE(activated.count(), 1);
+        QCOMPARE(activated.at(0).at(0).toInt(), 3);
+        nav.back();
+        QCOMPARE(nav.mainView(), Navigator::PlayView);
+    }
+
+    void compactRigsRow()
+    {
+        Navigator nav;
+        nav.setCompact(true);
+        nav.showMainView(Navigator::RigsView);
+        QCOMPARE(nav.activeRing(), nav.rigList());
+        nav.rigList()->setKinds({"item", "item", "item", "action", "action", "action", "action"});
+        nav.rigList()->setCount(7);
+        QSignalSpy load(&nav, &Navigator::rigLoadRequested);
+        QSignalSpy activated(nav.rigList(), &FocusRing::activated);
+        nav.rotate(2);
+        QCOMPARE(nav.applyHint(), QStringLiteral("load rig"));
+        QCOMPARE(nav.backHint(), QStringLiteral("play"));
+        nav.apply(); // a rig: load it and go home
+        QCOMPARE(load.count(), 1);
+        QCOMPARE(load.at(0).at(0).toInt(), 2);
+        QCOMPARE(nav.mainView(), Navigator::PlayView);
+        QCOMPARE(activated.count(), 0);
+
+        nav.showMainView(Navigator::RigsView);
+        nav.rigList()->setHighlight(4); // Rename: a button, answered by the view
+        QCOMPARE(nav.applyHint(), QStringLiteral("press"));
+        nav.apply();
+        QCOMPARE(activated.count(), 1);
+        QCOMPARE(activated.at(0).at(0).toInt(), 4);
+        QCOMPARE(nav.mainView(), Navigator::RigsView);
+        QCOMPARE(load.count(), 1);
+    }
+
+    void compactEditRow()
+    {
+        Navigator nav;
+        nav.setCompact(true);
+        nav.showMainView(Navigator::RigView);
+        QCOMPARE(nav.activeRing(), nav.rigEditor());
+        nav.rigEditor()->setCount(3);
+        QSignalSpy open(&nav, &Navigator::nodeEditorRequested);
+        nav.rotate(1);
+        QCOMPARE(nav.applyHint(), QStringLiteral("edit node"));
+        nav.apply();
+        QCOMPARE(open.count(), 1);
+        QCOMPARE(open.at(0).at(0).toInt(), 1);
+        nav.back(); // home, not to a rig list beside the editor
+        QCOMPARE(nav.mainView(), Navigator::PlayView);
+    }
+
+    void compactBackFromAnyViewIsPlay()
+    {
+        Navigator nav;
+        nav.setCompact(true);
+        for (auto view : {Navigator::RigsView, Navigator::RigView, Navigator::TunerView, Navigator::SettingsView}) {
+            nav.showMainView(view);
+            nav.back();
+            QCOMPARE(nav.mainView(), Navigator::PlayView);
+        }
+    }
+
+    void compactClosesAnOverlayBeforeGoingHome()
+    {
+        Navigator nav;
+        nav.setCompact(true);
+        nav.showMainView(Navigator::RigView);
+        FocusRing editor;
+        editor.setCount(2);
+        nav.openOverlay(Navigator::NodeEditor, &editor);
+        QCOMPARE(nav.backHint(), QStringLiteral("close"));
+        nav.back();
+        QCOMPARE(nav.overlay(), Navigator::NoOverlay);
+        QCOMPARE(nav.mainView(), Navigator::RigView);
+        nav.back();
+        QCOMPARE(nav.mainView(), Navigator::PlayView);
+    }
+
     void hints()
     {
         Navigator nav;

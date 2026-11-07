@@ -64,6 +64,12 @@ RigEditorModel::RigEditorModel(RigSession *session, Library *library, QObject *p
         connect(m_library, &Library::scanned, this, &RigEditorModel::relayout); // names arrive later
 }
 
+void RigEditorModel::setStyle(const Style &style)
+{
+    m_style = style;
+    relayout();
+}
+
 void RigEditorModel::setAvailableWidth(qreal width)
 {
     if (qFuzzyCompare(width, m_availableWidth))

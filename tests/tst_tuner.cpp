@@ -165,6 +165,23 @@ private slots:
         QCOMPARE(model.needleX(), 0);
     }
 
+    void theScaleIsTheLayoutsWidth()
+    {
+        // The 4.3" panel's tuner draws its scale 560 px wide (LayoutSpec): the needle is placed in
+        // those pixels, from the middle at rest to either end.
+        TunerModel model;
+        model.setBarWidth(560);
+        QCOMPARE(model.barWidth(), 560);
+        QCOMPARE(model.needleX(), 280);
+        model.setWatching(true);
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 4, 25.0, 446.4)));
+        QCOMPARE(model.needleX(), 420); // half way to the sharp end
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 4, 400.0, 460.0)));
+        QCOMPARE(model.needleX(), 560);
+        model.applyReply(reply(tunerState(true, QStringLiteral("A"), 4, -400.0, 420.0)));
+        QCOMPARE(model.needleX(), 0);
+    }
+
     void anUnchangedReadingDoesNotRedraw()
     {
         // `blocks` moves every block and is not drawn: a note held steady must not repaint the view

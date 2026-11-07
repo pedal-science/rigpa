@@ -126,11 +126,40 @@ existing path (Pico → pedald → `rig.load`), and rigpa follows. On the pedal,
 back are wired to the **Pico**: new UART event kinds, forwarded by pedald over a local socket.
 That path is specified now and built after the Mac proxies.
 
+**The compact layout** (the box's 4.3″ panel, 800×480 landscape; owner's requirements 2026-11-07,
+pedal.project D17 and `docs/pedal-owns-state.md`, milestones C1–C3):
+- Chosen at startup: `display.layout` in `rigpa.json` is `wide` (the default, everything above) or
+  `compact`; `--layout` overrides it, and an unknown name is refused (exit 2). Every size that
+  differs is in `LayoutSpec`; the models are the same `rigpa_core`, and only the views differ.
+  The panel is as dense as the bar (about 220 pixels to the inch), so the type is the bar's.
+- A top bar (52), one view at a time (800×388), and a bottom bar (40) with what apply and back do.
+  No menu and no info column: the engine's health and DSP load sit at the top right, and its status
+  and meters are in Settings.
+- **Play** is home: the running rig's name in 64 px type, readable from standing, then "Bank 1 ·
+  3 of 8 · Next: Crunch" (pedald's `/status`, polled once a second until pedald pushes it), the last
+  change, the rig's blocks as chips in signal order (a tap switches one on or off), and Rigs, Edit,
+  Tuner and Settings.
+- **Rigs**: the rig list full screen, with New, Rename (or Save as…), Copy and Delete under it.
+  Choosing a rig loads it and goes home to Play.
+- **Edit**: the chain editor, with the bar's touch rules at the panel's tile size (132×72), and +,
+  Undo and Redo in the top bar. **Tuner** and **Settings** as on the bar, arranged for the panel.
+- Every view is one step from Play: back, or "‹ Play" in the top bar.
+
+| Where (compact) | rotary | apply | back |
+|---|---|---|---|
+| Play | the chips, then Rigs, Edit, Tuner, Settings | chip: switch it; button: open its view | nothing (Play is the top) |
+| Rigs | the rigs, then New, Rename, Copy, Delete | rig: load it and go to Play; button: its dialog | go to Play |
+| Edit | the blocks in signal order | open the node editor | go to Play |
+| Node editor, picker, palette, dialog | as on the bar | as on the bar | as on the bar |
+| Tuner, Settings | as on the bar | as on the bar | go to Play |
+
 **On the Mac**:
 - `rigpa.json` sets the engine and pedald addresses, the token file, the library roots and a
   window scale (1920×480 doesn't fit a laptop at 1×): the size the window opens at. It can be
   resized or made full screen (the green button, e.g. on the pedal's own screen over HDMI), and the
   UI scales to fit, letterboxed.
+- `--layout compact` (or `display.layout`) shows the panel's views; with `display.scale` 1 the
+  window is exactly 800×480, and `--view play|rigs|edit|tuner|settings` starts in one of them.
 - Trackpad scroll stands in for touch scrolling.
 - **Cmd + trackpad scroll = main rotary.** Pixel deltas are gathered into detents, and Qt reports
   Cmd as `ControlModifier`.
