@@ -13,14 +13,24 @@ animation); protocol, models, layout maths, navigation and settings are C++. Pla
 (eglfs_kms) on vip, `cocoa` on the Mac, `offscreen`/`vnc` for tests and for viewing before the
 screen arrives.
 
-**Data.**
+**Data.** Since D17 (2026-11-09, pedal.project's `docs/pedal-owns-state.md`) the pedal owns its
+state and rigpa is one of its views, like ljoss: it sends edits and commands and is told of every
+change, whoever made it.
 - `namchaind`: TCP 127.0.0.1:47810, protocol 2, the existing token (on vip
   `$CREDENTIALS_DIRECTORY/token` via `LoadCredential`; else a file named in config). Later work may
   drop TCP or auth.
 - NAM and IR files: read directly, read‑only, from the roots namchaind uses; rigpa parses their
   metadata itself (namchaind doesn't).
-- Rigs: through pedald's HTTP API (47820, same token as bearer), which owns the rig library:
-  list, get, save, new, rename, duplicate, delete.
+- Rigs: through pedald's HTTP API (47820, same token as bearer), which owns the rig library,
+  the banks and the undo history: list, get, play, new, rename, duplicate, delete, save as, undo,
+  redo, and the banks' order (`PUT /bank`).
+- The block palette: the engine's types (`engine.schema`) plus the pedal's 27 block templates
+  (`GET /catalogue`), with their names and 0–10 knobs, the same blocks ljoss offers. A block made
+  from a template says so in its nodes' `meta`, and its tile and node editor use the template's
+  name and controls.
+- Changes are pushed, not polled: the engine's events (`engine.subscribe`) and pedald's event
+  stream (`GET /events`: what each press, CC or app did, the rig list, the banks, saves and the
+  undo history). Engine status is still read once a second for health.
 - On vip the facts come from `/etc/namchain/namchaind.json` and `/etc/pedal/pedald.json`, read
   the way pedald reads them (R12, one home per fact). `rigpa.json` holds only rigpa's own
   settings, plus explicit overrides for the Mac.
@@ -68,7 +78,8 @@ screen arrives.
   - Add (+) opens a palette of engine node types, including "parallel split". The new node goes
     after the selected one.
   - A node is removed from its editor, or by dragging it to a trash zone.
-  - Undo and redo.
+  - Undo and redo, which are the pedal's (`POST /undo`, `/redo`): one history per rig, shared by
+  every view, so Undo on rigpa can take back an edit made in ljoss.
 - **Touch**:
   - Tap selects a node. Tapping the node that is already selected opens its editor once the
     double‑tap window (~300 ms) passes. **Double‑tap toggles bypass.**
@@ -79,7 +90,12 @@ screen arrives.
   - The view auto‑scrolls near the edges.
 - **Startup**: show the rig namchaind is running. If it runs none, `rig.load` the first rig in the
   list.
-- rigpa follows rig changes made by others (footswitch, MIDI, ljoss) by polling.
+- **Following other clients.** rigpa applies every change the engine pushes, from a footswitch,
+  MIDI, ljoss or another rigpa, to what it shows, and the play line says what caused it ("Footswitch
+  2 → Clean", "ljoss"). A structural edit carries `if_seq`; if another client got there first it is
+  refused as `conflict`, and rigpa reads the pedal's document again and says so. Knob streams are
+  last-writer-wins. Every edit is tagged with its gesture, so the pedal makes one drag one undo
+  step.
 
 **Node editor** covers the whole content area. The header shows the node's name.
 - Title row: `[Remove] … [Bypass switch][Close]`. The bypass switch is to the left of Close.
@@ -101,12 +117,12 @@ screen arrives.
 
 **Settings view**: rig list width, live meters on/off.
 
-**Saving**:
-- Auto‑save about 1 s after the last change, `PUT` through pedald, to the library rig the running
-  rig came from. That rig is matched by path, or by document name after a reboot has resumed
-  `last.json`.
-- A running rig that isn't in the library (for example one ljoss applied) is not auto‑saved. It is
-  marked unsaved, and "Save as…" in the rig list stores it under a new name.
+**Saving** (D17): **the pedal saves, not rigpa.** pedald writes an edit to the running rig's
+library entry once it settles, whoever made it, and says so on its event stream; rigpa's header
+shows the saved mark from that. There is no Save button. A performance change (a footswitch, MIDI
+or expression moving a value) is shown but never saved. Edits from a client that doesn't name
+itself are shown and not saved; such a rig is marked unsaved, and "Save as…" stores it under a new
+name. (rigpa's own 1 s autosave, before D17, is gone.)
 
 **Hardware control model** (main rotary, apply, back; in rig view the levels are rig list → rig
 editor → node editor):
@@ -140,7 +156,8 @@ pedal.project D17 and `docs/pedal-owns-state.md`, milestones C1–C3):
   change, the rig's blocks as chips in signal order (a tap switches one on or off), and Rigs, Edit,
   Tuner and Settings.
 - **Rigs**: the rig list full screen, with New, Rename (or Save as…), Copy and Delete under it.
-  Choosing a rig loads it and goes home to Play.
+  Choosing a rig plays it and goes home to Play. A new rig goes right after the running one in its
+  bank. **Banks** reorders the pedal's banks by the rotary, arrows or a drag.
 - **Edit**: the chain editor, with the bar's touch rules at the panel's tile size (132×72), and +,
   Undo and Redo in the top bar. **Tuner** and **Settings** as on the bar, arranged for the panel.
 - The overlays (node editor, picker, palette, rig dialog) are the bar's, filling the panel's
@@ -169,5 +186,6 @@ pedal.project D17 and `docs/pedal-owns-state.md`, milestones C1–C3):
 - `.` = apply, `,` = back. Neither fires while a text field has focus.
 - ⌘Z and ⇧⌘Z undo and redo.
 
-**Later, not now**: the Pico controls path, ljoss's "my document wins" on connect (R6, it overwrites
-the pedal's rig), dropping TCP/auth, banks and MIDI‑map UI, NAM/IR uploads.
+**Later, not now**: the Pico controls path, dropping TCP/auth, the MIDI‑map UI, NAM/IR uploads
+(files reach the pedal from ljoss's Compare Files…). Done by D17: ljoss no longer overwrites the
+pedal's rig on connect (R6), and banks can be reordered.

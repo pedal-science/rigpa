@@ -4,6 +4,21 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
 
 ## Next session starts with
 
+- **The pedal owns its state (D17, 2026-11-07 to 11-09).** pedal.project's
+  `docs/pedal-owns-state.md` is the plan; its "Next session starts with" says where it stands.
+  rigpa's part:
+  - **C1–C3, the compact layout** for the box's 4.3″ panel (`display.layout`, `--layout compact`):
+    Play as home, Rigs, Edit, Tuner and Settings, by touch and by the rotary (`ed481e6`), flowEQ's
+    panel fitted (`f5a6825`), and on vip's DSI panel.
+  - **O5, rigpa follows the pedal** (`8f92f6f`, `129f178`, `f32bb2a` on vip): it applies the
+    engine's pushed changes and reads pedald's event stream instead of polling; rigs are played,
+    made, renamed, deleted and undone through pedald, which saves, so rigpa's own autosave is gone;
+    the palette offers the pedal's 27 templates and the node editor their 0–10 controls; a Banks
+    page reorders the banks; the play line says what caused a change. `--input U`/`Y` are Undo and
+    Redo (`1c6fc8d`).
+  - [spec.md](spec.md)'s Data, Saving and "Following other clients" say how it works now.
+  - **Still to do by eye on the panel:** its rotation (0 or 180), touch landing where touched, and
+    legibility from standing.
 - **The tuner (2026-10-20).** namchain grew `nc.tuner` — squatch-dsp's tuner as a node whose output is
   silence — and a schema flag, `flags.in_palette: false`, that says a type is not a block. rigpa
   turns that into the pedal's tuner: a **main view** from the menu button directly above Settings,
