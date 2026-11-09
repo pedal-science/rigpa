@@ -9,8 +9,9 @@
 #
 #   mise run run -- --config .dev/rigpa.json
 #
-# The library is ~/Documents/Audio's NAM/ and IRs/ (what sync-library sends to the pedal, so the
-# ids match vip's), or RIGPA_DEV_LIBRARY's; it is only ever read. Without one, namchain's
+# The library is an APFS clone of ~/Documents/Audio's NAM/ and IRs/ (the same files as the pedal's,
+# so the ids match vip's), or of RIGPA_DEV_LIBRARY's, made once in .dev/library. pedald writes files
+# now, so it is never given the real one. Delete the clone to take a new one. Without one, namchain's
 # generated test models stand in, and the fixture rigs' models show as missing. The fixture rigs
 # in dev/rigs/ are copied into .dev/library/rigs/ once; after that the copies are the dev pedal's
 # own (delete them to start again).
@@ -85,8 +86,10 @@ mkdir -p "$DEV/logs" "$DEV/state" "$DEV/library/rigs"
 
 LIBRARY=${RIGPA_DEV_LIBRARY:-$HOME/Documents/Audio}
 if [[ -d $LIBRARY/NAM && -d $LIBRARY/IRs ]]; then
-  MODELS=$LIBRARY/NAM
-  IRS=$LIBRARY/IRs
+  MODELS=$DEV/library/models
+  IRS=$DEV/library/irs
+  [[ -e $MODELS ]] || cp -c -R "$LIBRARY/NAM" "$MODELS"
+  [[ -e $IRS ]] || cp -c -R "$LIBRARY/IRs" "$IRS"
 else
   MODELS=$DEV/library/models
   IRS=$DEV/library/irs
@@ -147,7 +150,8 @@ cat > "$DEV/pedald.json" <<JSON
   "uart_device": "$DEV/no-pico",
   "http_host": "127.0.0.1",
   "http_port": $PEDALD_PORT,
-  "state_root": "$DEV/state"
+  "state_root": "$DEV/state",
+  "cache_root": "$DEV/cache"
 }
 JSON
 [[ -e $RIGPA_CONFIG ]] || cat > "$RIGPA_CONFIG" <<JSON

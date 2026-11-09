@@ -109,7 +109,7 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
   writes `.vip/rigpa.json`; `mise run run -- --config .vip/rigpa.json`. It asks vip for its IPv4
   address at the same time: `vip` resolves to IPv6 on the Mac, and namchaind and pedald listen on
   IPv4 (`0.0.0.0`). The library rigpa reads is the Mac's `~/Documents/Audio`, which
-  `sync-library` mirrors, so ids match. Checked read-only: vip's running rig (`last.json`'s
+  the pedal holds, so ids match. Checked read-only: vip's running rig (`last.json`'s
   t5-lstm, its model missing on vip, as the engine says), live status, and an empty rig library
   (`GET /library/rigs` agrees: only the resume snapshot is there). Edits made this way are real:
   they play on the pedal and auto-save into vip's library.
@@ -333,7 +333,7 @@ after each of rigpa's own changes.
   - the null backend, or `coreaudio` with a looped WAV when the meters should move;
   - TCP 127.0.0.1:47810, with a 64‑hex token kept in `.dev/token` (mode 0600);
   - `rigs_root=.dev/library/rigs`, seeded from `dev/rigs/`;
-  - models/irs roots at `~/Documents/Audio/{NAM,IRs}`, which is what `sync-library` mirrors, so
+  - models/irs roots at `~/Documents/Audio/{NAM,IRs}`, which holds the pedal's files too, so
     the ids match vip's.
 - It starts `../namchain/build-mac/namchaind`.
 - It starts pedald with `python3 -m pedald run`, its `PYTHONPATH` at
@@ -374,7 +374,7 @@ after each of rigpa's own changes.
 | M0 | rigpa, pedal.project | Repo, workspace registration, docs (spec, plan, D14), toolchain, an empty 1920×480 window | `scripts/workspace check` clean; `mise run qt build test run` shows the window |
 | M1 | rigpa | Shell: menu (slot 1 blank in rig view), header/footer/info frames, views switching, `Navigator`, `DevInput`, settings view + persistence | `.` `,` ⌘‑scroll drive highlight/edit in settings; width persists |
 | M2 | rigpa | Engine client + session, dev loop, info panel (connection, health, DSP, xruns, meters), header rig name | `mise run dev` + `run`: connected, live status (local only) |
-| P1 | pedal.project | pedald rig library API (below) + tests; `sync-library`'s rigs re‑own bug fixed | `devices/common/test-pedald` green; curl against the dev pedald |
+| P1 | pedal.project | pedald rig library API (below) + tests; the rigs' re‑own bug fixed | `devices/common/test-pedald` green; curl against the dev pedald |
 | M3 | rigpa | Library scan + browse view (Models/IRs, metadata, grouped, rotary up/down) | Browse the Mac library smoothly (~1,500 IRs) |
 | M4 | rigpa | Rig view: rig list via pedald, read‑only editor (tiles, wrap, lanes, wires), select, startup rule, rig switching, following others | Switch rigs by tap and rotary/apply; `namchainctl load` elsewhere → rigpa follows |
 | M5 | rigpa | Node editor (schema‑driven knobs/toggles/segments, fits without scrolling), bypass switch + double‑tap, model/IR picker, `EditStream` | Knob drags stream (`params_applied` moves, `generation` doesn't); bypass; swap a model |

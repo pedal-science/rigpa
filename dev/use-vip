@@ -10,8 +10,8 @@
 #
 # What rigpa does there is real: edits play on the pedal and auto-save into vip's rig library. A
 # connection takes one of namchaind's TCP slots (tcp_max_connections, 4 by default). The library rigpa
-# reads is the Mac's ~/Documents/Audio (or RIGPA_DEV_LIBRARY's), which sync-library mirrors to the
-# pedal, so the ids match.
+# reads is a copy of the Mac's ~/Documents/Audio (or RIGPA_DEV_LIBRARY's), the same files the pedal
+# holds, so the ids match.
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
