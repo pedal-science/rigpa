@@ -163,35 +163,26 @@ private slots:
 
     void whereTheFootswitchesAre()
     {
-        PedaldClient client;
-        PedaldStatus status(&client);
+        PedaldStatus status(nullptr);
         QSignalSpy changed(&status, &PedaldStatus::changed);
         QVERIFY(!status.reachable());
 
-        const QJsonObject warm = json(R"({"bank": {"banks": [["A", "B", "C"], ["D"]], "bank": 0,
-            "position": 1, "size": 3, "current": "B"}, "engine": {"warm_decision": {"wanted": "A"}}})");
-        status.applyStatus(warm);
+        status.applyBanks(json(R"({"banks": [["A", "B", "C"], ["D"]], "bank": 0})"));
+        const QJsonObject running = json(R"({"rig": "B", "bank": 0, "position": 1, "bank_size": 3, "next": "A"})");
+        status.applyRunning(running);
         QVERIFY(status.reachable());
         QCOMPARE(status.bank(), 0);
         QCOMPARE(status.bankCount(), 2);
         QCOMPARE(status.position(), 1);
         QCOMPARE(status.size(), 3);
         QCOMPARE(status.next(), QStringLiteral("A")); // the way the player last stepped: the service's word
-        QCOMPARE(changed.count(), 1);
-        status.applyStatus(warm);
-        QCOMPARE(changed.count(), 1); // the same status twice is one change
-
-        // Warming off: the service's `wanted` is stale then, and the next rig up stands in,
-        // wrapping at the end of the bank.
-        status.applyStatus(json(R"({"bank": {"banks": [["A", "B", "C"]], "bank": 0, "position": 2,
-            "size": 3}, "engine": {"warm_decision": {"state": "off", "wanted": "B"}}})"));
-        QCOMPARE(status.next(), QStringLiteral("A"));
-        status.applyStatus(json(R"({"bank": {"banks": [["A", "B", "C"]], "bank": 0, "position": 0,
-            "size": 3}, "engine": {"warm_decision": {"state": "idle", "wanted": null}}})"));
-        QCOMPARE(status.next(), QStringLiteral("B"));
+        QCOMPARE(changed.count(), 2);
+        status.applyRunning(running);
+        QCOMPARE(changed.count(), 2); // the same twice is one change
+        QCOMPARE(status.banks().size(), 2);
 
         // A rig the bank doesn't have: no place in it, and no guess at the next.
-        status.applyStatus(json(R"({"bank": {"banks": [["A", "B"]], "bank": 0, "position": -1, "size": 2}})"));
+        status.applyRunning(json(R"({"rig": "X", "bank": 0, "position": -1, "bank_size": 2, "next": "A"})"));
         QCOMPARE(status.position(), -1);
         QVERIFY(status.next().isEmpty());
 

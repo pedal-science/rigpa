@@ -9,6 +9,13 @@ namespace rigpa {
 
 EngineSession::EngineSession(QObject *parent) : QObject(parent)
 {
+    m_client.setClientName(QStringLiteral("rigpa"));
+    connect(&m_client, &EngineClient::event, this, [this](const QJsonObject &frame) {
+        // A rig replaced is a new name and generation: ask now rather than at the next poll.
+        if (frame.value(QStringLiteral("event")).toString() == QLatin1String("rig.replaced"))
+            pollStatus();
+        emit engineEvent(frame);
+    });
     m_statusTimer.setInterval(kStatusIntervalMs);
     m_levelsTimer.setInterval(kLevelsIntervalMs);
     connect(&m_statusTimer, &QTimer::timeout, this, &EngineSession::pollStatus);
@@ -20,7 +27,12 @@ EngineSession::EngineSession(QObject *parent) : QObject(parent)
                 m_levelsTimer.start();
             pollStatus();
             fetchSchema();
+            subscribe();
         } else {
+            if (m_following) {
+                m_following = false;
+                emit followingChanged();
+            }
             m_statusTimer.stop();
             m_levelsTimer.stop();
             m_statusInFlight = m_levelsInFlight = false;
@@ -53,6 +65,23 @@ void EngineSession::fetchSchema()
             return;
         m_schema = Schema::parse(reply.body);
         emit schemaChanged();
+    });
+}
+
+void EngineSession::subscribe()
+{
+    if (!m_client.hasFeature(QStringLiteral("events")))
+        return;
+    const QJsonObject params{{QStringLiteral("events"), QJsonArray{QStringLiteral("rig"), QStringLiteral("params")}},
+                             {QStringLiteral("echo"), false},
+                             {QStringLiteral("min_interval_ms"), 50}};
+    m_client.request(QStringLiteral("engine.subscribe"), params, [this](const EngineReply &reply) {
+        if (!reply.ok || m_following)
+            return;
+        m_following = true;
+        emit followingChanged();
+        // Whatever changed between the last read and the subscription: read it once.
+        emit engineEvent(QJsonObject{{QStringLiteral("event"), QStringLiteral("resync")}});
     });
 }
 

@@ -14,6 +14,13 @@ void PedaldClient::setEndpoint(const QString &host, quint16 port, const QString 
     m_token = token;
 }
 
+QUrl PedaldClient::url(const QString &path) const
+{
+    QUrl url = m_base;
+    url.setPath(path, QUrl::StrictMode);
+    return url;
+}
+
 QString PedaldClient::rigPath(const QString &name, const QString &suffix)
 {
     return QStringLiteral("/library/rigs/") + QString::fromUtf8(QUrl::toPercentEncoding(name)) + suffix;
@@ -31,10 +38,10 @@ void PedaldClient::send(const QByteArray &verb, const QString &path, const QByte
             done({false, 0, {}, tr("no token for the pedal service")});
         return;
     }
-    QUrl url = m_base;
-    url.setPath(path, QUrl::StrictMode);
-    QNetworkRequest request(url);
+    QNetworkRequest request(url(path));
     request.setRawHeader("Authorization", "Bearer " + m_token.toUtf8());
+    // Who asked, which pedald says when it tells every view what happened.
+    request.setRawHeader("Pedal-Client", "rigpa");
     request.setTransferTimeout(5000);
     if (!body.isNull())
         request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));

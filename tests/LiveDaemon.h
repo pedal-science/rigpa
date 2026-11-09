@@ -82,7 +82,8 @@ struct LiveDaemon {
                                  {"tcp_port", port}, {"tcp_token_file", dir.filePath("token")}});
         QDir().mkpath(dir.filePath("state"));
         write("pedald.json", {{"uart_device", dir.filePath("no-pico")}, {"http_host", "127.0.0.1"},
-                              {"http_port", pedaldPort}, {"state_root", dir.filePath("state")}});
+                              {"http_port", pedaldPort}, {"state_root", dir.filePath("state")},
+                              {"cache_root", dir.filePath("cache")}, {"autosave", true}});
         QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
         env.insert("PEDALD_LIB", rootfs + "/usr/local/lib");
         pedald.setProcessEnvironment(env);

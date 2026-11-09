@@ -8,6 +8,7 @@
 #include "LiveDaemon.h"
 #include "engine/EngineSession.h"
 #include "pedald/PedaldClient.h"
+#include "pedald/PedaldEvents.h"
 #include "pedald/PedaldStatus.h"
 #include "rig/PlayModel.h"
 #include "rig/RigEditorModel.h"
@@ -21,7 +22,8 @@ class TestPlayLive : public QObject
     Q_OBJECT
     LiveDaemon daemon;
     PedaldClient pedald;
-    PedaldStatus status{&pedald};
+    PedaldEvents events{&pedald};
+    PedaldStatus status{&events};
     RigList rigs{&pedald};
     EngineSession engine;
     RigSession session{&engine, &rigs};
@@ -47,7 +49,8 @@ private slots:
         daemon.startPedald();
         pedald.setEndpoint("127.0.0.1", daemon.pedaldPort, daemon.token);
         rigs.start();
-        status.start();
+        play.setEvents(&events);
+        events.start();
         engine.start("127.0.0.1", daemon.port, daemon.token);
         QTRY_VERIFY_WITH_TIMEOUT(session.hasDocument() && engine.rigName() == "Clean", 15000);
     }
@@ -72,7 +75,8 @@ private slots:
         QVERIFY(press(81));
         QTRY_COMPARE_WITH_TIMEOUT(engine.rigName(), QStringLiteral("Flow"), 10000);
         QTRY_COMPARE_WITH_TIMEOUT(status.position(), 1, 10000);
-        QTRY_COMPARE_WITH_TIMEOUT(play.lastChange(), QStringLiteral("Now playing Flow"), 5000);
+        // Who did it, and what it did: a press sent over HTTP, so a CC rather than a footswitch.
+        QTRY_COMPARE_WITH_TIMEOUT(play.lastChange(), QStringLiteral("CC 81 → Flow"), 5000);
         QTRY_COMPARE_WITH_TIMEOUT(status.next(), QStringLiteral("Lead"), 10000);
         QTRY_VERIFY_WITH_TIMEOUT(play.count() > 0, 5000);
     }

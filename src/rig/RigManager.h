@@ -11,15 +11,15 @@ namespace rigpa {
 
 class EngineSession;
 class PedaldClient;
+class PedaldEvents;
 class RigList;
 class RigSession;
 
-// Keeping the library in step with what is played, through pedald (it owns the library, D4).
+// The rig library, through pedald, which owns it and saves what is played (pedal.project D17).
 //
-// Auto-save: about a second after the last edit made here, the document the engine runs is read
-// back and PUT to the library rig it came from (the running rig, as the rig list names it). A rig
-// that isn't in the library (one ljoss applied) is never saved over anything: it shows as unsaved,
-// and Save as… gives it a name.
+// Saving is the pedal's: an edit shows as "pending" until pedald's `saved` event names the running
+// rig. A rig that isn't in the library (one an older app applied) is never saved over anything: it
+// shows as unsaved, and Save as… gives it a name.
 //
 // Rig management: New, Rename, Duplicate and Delete act on the running rig, Save as… on a running
 // rig the library doesn't have. Each asks first, in a dialog (a name, typed on the virtual
@@ -63,8 +63,8 @@ public:
     Q_INVOKABLE void cancel();
     // Why a name can't be used ("" when it can): pedald's rules, and no clash with another rig.
     Q_INVOKABLE QString check(const QString &name) const;
-    // Saves now (tests; and before anything that needs the file current).
-    void saveNow();
+    // pedald's events: `saved` is how a save is known to have happened.
+    void setEvents(PedaldEvents *events);
 
     // The document a new rig starts with: one chain, In to Out.
     static QJsonObject emptyRig(const QString &name);
@@ -83,22 +83,17 @@ private:
     void updateSaveState();
     void finish(const QString &error = {});
     void setBusy(bool busy);
-    // Runs `then` once nothing is waiting to be saved (at once, if nothing is).
-    void whenSaved(std::function<void()> then);
     void rename(const QString &from, const QString &to);
-    void duplicate(const QString &from, const QString &to);
-    void put(const QString &name, QJsonObject document, std::function<void(const QString &error)> done);
+    // POST /library/rigs: a new rig from nothing, from a rig, or from what is playing.
+    void create(const QString &name, const QJsonValue &from, bool load);
 
     EngineSession *m_engine;
     RigSession *m_session;
     RigList *m_rigs;
     PedaldClient *m_pedald;
     FocusRing m_ring;
-    QTimer m_saveTimer;
-    QString m_saveTo;
     QString m_saveState;
-    bool m_saving = false;
-    QList<std::function<void()>> m_afterSave;
+    bool m_pending = false;
     QString m_dialog, m_target, m_proposed, m_error;
     bool m_busy = false;
 };

@@ -32,6 +32,8 @@ class TestFlowEqLive : public QObject
     EngineSession engine;
     RigSession session{&engine, &rigs};
     NodeEditorModel editor{&session, &engine, nullptr, nullptr};
+    // Another app: the engine doesn't tell a connection of its own changes.
+    EngineClient other;
 
     FlowEqModel *flow() { return editor.flowEq(); }
 
@@ -153,9 +155,10 @@ private slots:
         // The knobs follow the document; the curve has to follow too, or the panel draws the EQ it
         // was playing a moment ago.
         const QString before = flow()->curvePath();
-        QVERIFY(engine.client()->isReady());
+        other.connectTo("127.0.0.1", daemon.port, daemon.token);
+        QTRY_VERIFY_WITH_TIMEOUT(other.isReady(), 5000);
         bool done = false;
-        engine.client()->request(QStringLiteral("rig.patch"),
+        other.request(QStringLiteral("rig.patch"),
                                  QJsonObject{{QStringLiteral("ops"),
                                               QJsonArray{QJsonObject{{QStringLiteral("op"), QStringLiteral("set_param")},
                                                                      {QStringLiteral("node"), kFlow},
@@ -172,7 +175,7 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(editor.valueAt(editor.indexOfParam(QStringLiteral("x"))), -1.5, 5000);
 
         // And back, for the tests after this one.
-        engine.client()->request(QStringLiteral("rig.patch"),
+        other.request(QStringLiteral("rig.patch"),
                                  QJsonObject{{QStringLiteral("ops"),
                                               QJsonArray{QJsonObject{{QStringLiteral("op"), QStringLiteral("set_param")},
                                                                      {QStringLiteral("node"), kFlow},

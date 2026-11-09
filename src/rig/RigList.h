@@ -10,7 +10,7 @@
 namespace rigpa {
 
 // The library's rigs, by name, from pedald (GET /library/rigs): pedald owns the rig library
-// (pedal.project D4). Polled every 5 s and after rigpa's own changes, since nothing is pushed.
+// (pedal.project D4). Read when pedald's events say the library changed, and on each connection.
 class RigList : public QAbstractListModel
 {
     Q_OBJECT
@@ -24,9 +24,9 @@ class RigList : public QAbstractListModel
 
 public:
     enum Role { NameRole = Qt::UserRole + 1, RunningRole };
-    static constexpr int kPollMs = 5000;
-
     explicit RigList(PedaldClient *pedald, QObject *parent = nullptr);
+    // pedald's events: a `library` change of rigs, or a `hello`, is a reason to read the list again.
+    void setEvents(class PedaldEvents *events);
 
     void start();
     Q_INVOKABLE void refresh();
@@ -59,7 +59,6 @@ private:
     bool m_loaded = false;
     bool m_inFlight = false;
     bool m_again = false;
-    QTimer m_timer;
 };
 
 } // namespace rigpa

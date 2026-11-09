@@ -8,6 +8,7 @@
 namespace rigpa {
 
 class EngineSession;
+class PedaldEvents;
 class RigEditorModel;
 class RigSession;
 
@@ -18,9 +19,9 @@ class RigSession;
 // so a chip has the tile's name and look and the two never disagree. A tap toggles the block's
 // bypass, as a double tap on its tile does.
 //
-// "What changed last" is what rigpa can know today: its own toggles, and the rig changing under
-// it. The cause of a change made elsewhere (a footswitch, ljoss) arrives with pedald's events
-// (pedal.project docs/pedal-owns-state.md, O5).
+// "What changed last" says who did it: rigpa's own toggles, a footswitch or MIDI with what it did
+// (pedald's `action` events: "Footswitch 2 → Clean Lead"), and a value another app moved (the
+// engine's events: "ljoss: Amp · Bass 6.2").
 class PlayModel : public QAbstractListModel
 {
     Q_OBJECT
@@ -40,6 +41,11 @@ public:
     // Switches the chip's block on or off.
     Q_INVOKABLE void toggle(int row);
     void setLastChange(const QString &text);
+    void setEvents(PedaldEvents *events);
+    // What a pedald `action` or an engine `rig.params` event says, as the line shows it ("" for
+    // nothing worth saying). Tests call these directly.
+    QString describeAction(const QJsonObject &action) const;
+    QString describeParams(const QJsonObject &frame) const;
 
     int rowCount(const QModelIndex &parent = {}) const override;
     QVariant data(const QModelIndex &index, int role) const override;

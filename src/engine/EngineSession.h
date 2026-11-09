@@ -11,9 +11,10 @@
 
 namespace rigpa {
 
-// The engine as the screen sees it. namchaind pushes nothing, so this polls: `engine.status` twice
-// a second and, while the meters are on, `engine.levels` ten times a second (one request of each
-// kind in flight at most). Everything QML shows about the engine comes from here.
+// The engine as the screen sees it. The rig's changes are pushed (`engine.subscribe`, with this
+// connection's own left out) and arrive as `engineEvent`; the rest is polled: `engine.status` once a
+// second for the DSP load and xruns, and, while the meters are on, `engine.levels` ten times a second
+// (one request of each kind in flight at most). Everything QML shows about the engine comes from here.
 class EngineSession : public QObject
 {
     Q_OBJECT
@@ -44,7 +45,7 @@ public:
     enum Connection { NotConfigured, Connecting, Connected, Retrying, Refused };
     Q_ENUM(Connection)
 
-    static constexpr int kStatusIntervalMs = 500;
+    static constexpr int kStatusIntervalMs = 1000;
     static constexpr int kLevelsIntervalMs = 100;
     // A meter shows nothing below this.
     static constexpr double kFloorDb = -60.0;
@@ -85,6 +86,9 @@ public:
     qint64 paramsApplied() const { return m_paramsApplied; }
     // A status has arrived on this connection.
     bool hasStatus() const { return m_haveHistogram; }
+    // Whether the engine is pushing the rig's changes to this connection: then nothing need be
+    // read back to learn of one.
+    bool following() const { return m_following; }
     QVariantList inputPeaks() const { return m_inputPeaks; }
     QVariantList outputPeaks() const { return m_outputPeaks; }
     bool metersEnabled() const { return m_metersEnabled; }
@@ -105,8 +109,12 @@ signals:
     void levelsChanged();
     void metersEnabledChanged();
     void schemaChanged();
+    // The engine pushed a change: `rig.replaced`, `rig.patched`, `rig.params`, or `resync`.
+    void engineEvent(const QJsonObject &frame);
+    void followingChanged();
 
 private:
+    void subscribe();
     void pollStatus();
     void pollLevels();
     void fetchSchema();
@@ -119,6 +127,7 @@ private:
     bool m_statusInFlight = false;
     bool m_levelsInFlight = false;
     bool m_metersEnabled = true;
+    bool m_following = false;
     QString m_problem;
 
     QString m_engineState;

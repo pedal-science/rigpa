@@ -63,13 +63,16 @@ void EditStream::flush()
     QJsonObject params{{QStringLiteral("ops"), ops}};
     if (!chain.isEmpty())
         params.insert(QStringLiteral("chain"), chain);
+    if (!m_tag.isEmpty())
+        params.insert(QStringLiteral("tag"), m_tag);
     m_inFlight = true;
     m_sinceSend.start();
     ++m_sent;
     m_client->request(QStringLiteral("rig.patch"), params, [this](const EngineReply &reply) {
         m_inFlight = false;
         if (reply.ok)
-            emit answered(reply.body.value(QStringLiteral("kind")).toString());
+            emit answered(reply.body.value(QStringLiteral("kind")).toString(),
+                          reply.body.value(QStringLiteral("seq")).toInteger(-1));
         else
             emit refused(reply.message.isEmpty() ? reply.code : reply.message);
         flush();

@@ -10,6 +10,7 @@
 #include "library/Library.h"
 #include "library/PickerModel.h"
 #include "pedald/PedaldClient.h"
+#include "pedald/PedaldEvents.h"
 #include "pedald/PedaldStatus.h"
 #include "rig/NodeEditorModel.h"
 #include "rig/PaletteModel.h"
@@ -100,13 +101,17 @@ int main(int argc, char *argv[])
     library.setRoots(config.modelsRoot(), config.irsRoot());
     library.rescan();
     rigpa::PedaldClient pedald;
+    rigpa::PedaldEvents pedalEvents(&pedald);
     rigpa::RigList rigs(&pedald);
+    rigs.setEvents(&pedalEvents);
     rigpa::RigSession rigSession(&engineSession, &rigs);
+    rigSession.setPedal(&pedald, &pedalEvents);
     rigpa::RigEditorModel editor(&rigSession, &library);
     rigpa::NodeEditorModel nodeEditor(&rigSession, &engineSession, &editor, &library);
     rigpa::PickerModel picker(&library);
     rigpa::PaletteModel palette(&engineSession, &library);
     rigpa::RigManager manager(&engineSession, &rigSession, &rigs, &pedald);
+    manager.setEvents(&pedalEvents);
     rigpa::TunerModel tuner;
     tuner.setClient(engineSession.client());
     // The sizes the models lay out with are the layout's.
@@ -114,7 +119,8 @@ int main(int argc, char *argv[])
     tuner.setBarWidth(layout.tunerBarWidth());
     nodeEditor.flowEq()->setCurveSize(layout.flowEqCurveWidth(), layout.flowEqCurveHeight());
     rigpa::PlayModel play(&rigSession, &editor, &engineSession);
-    rigpa::PedaldStatus pedalStatus(&pedald);
+    play.setEvents(&pedalEvents);
+    rigpa::PedaldStatus pedalStatus(&pedalEvents);
     rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor,
                          &nodeEditor, &picker, &palette, &manager, &tuner);
     appObject.setLayout(&layout);
@@ -132,9 +138,15 @@ int main(int argc, char *argv[])
     engineSession.start(config.engineHost(), config.enginePort(), token, tokenProblem);
     pedald.setEndpoint(config.pedaldHost(), config.pedaldPort(), token);
     rigs.start();
-    // Only the play view shows where the footswitches are.
-    if (layout.compact())
-        pedalStatus.start();
+    pedalEvents.start();
+    // pedald is the only writer of models and IRs: when it says the library changed, look again.
+    QObject::connect(&pedalEvents, &rigpa::PedaldEvents::event, &library,
+                     [&library](const QString &kind, const QJsonObject &data) {
+        const QString which = data.value(QStringLiteral("library")).toString();
+        if (kind == QLatin1String("library") && which != QLatin1String("rigs")
+            && data.value(QStringLiteral("change")).toString() != QLatin1String("hashed"))
+            library.rescan();
+    });
 
     rigpa::DevInput devInput;
     devInput.setInverted(config.rotaryInverted());

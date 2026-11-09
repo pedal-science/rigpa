@@ -36,6 +36,11 @@ public:
     void post(const QString &path, const QByteArray &body, Callback done);
     void remove(const QString &path, Callback done);
 
+    // For the event stream, which holds its request open on the same connection pool.
+    QUrl url(const QString &path) const;
+    QString token() const { return m_token; }
+    QNetworkAccessManager *network() { return &m_network; }
+
     // "/library/rigs/<name>" with the name percent-encoded.
     static QString rigPath(const QString &name, const QString &suffix = {});
 

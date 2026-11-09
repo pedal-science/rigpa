@@ -23,8 +23,9 @@ struct EngineReply {
 };
 
 // A connection to namchaind over TCP (namchain docs/daemon.md): u32-LE framed JSON, `engine.hello`
-// with the token first, then requests matched to replies by their string id. Nothing is ever
-// pushed: everything here is an answer to something asked.
+// with the token first, then requests matched to replies by their string id. A frame with `event`
+// and no id is one the engine pushed to a subscriber (docs/daemon.md, "Events"): it goes out as
+// `event`, and the requests waiting are not disturbed.
 //
 // It keeps itself connected: a failure or a drop is retried after 1, 2, 5 and 10 s, then every
 // 30 s (ljoss's schedule), except a refusal that retrying can't fix (`unauthorized`,
@@ -44,6 +45,9 @@ public:
     ~EngineClient() override;
 
     void connectTo(const QString &host, quint16 port, const QString &token);
+    // What this connection's changes are called in the engine's events, and so in pedald's: a
+    // client that names itself is one whose edits the pedal saves (pedal-service.md, "Keeping the rig").
+    void setClientName(const QString &name) { m_clientName = name; }
     void disconnectFromEngine();
 
     // Sends one request; `done` gets its reply, or a failure (`not_connected`, `timeout`,
@@ -68,6 +72,8 @@ signals:
     void stateChanged(rigpa::EngineClient::State state);
     // Each time a connection is authenticated and usable.
     void ready();
+    // A frame the engine pushed: `event`, `seq`, `origin` and whatever that event carries.
+    void event(const QJsonObject &frame);
 
 private:
     struct Pending {
@@ -95,6 +101,7 @@ private:
     QString m_host;
     quint16 m_port = 0;
     QString m_token;
+    QString m_clientName;
     State m_state = State::Idle;
     QHash<QString, Pending> m_pending;
     quint64 m_nextId = 1;

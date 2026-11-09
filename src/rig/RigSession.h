@@ -8,15 +8,27 @@
 #include <QElapsedTimer>
 #include <QObject>
 #include <QSet>
+#include <QTimer>
 #include <QtQml/qqmlregistration.h>
 
 namespace rigpa {
 
+class PedaldClient;
+class PedaldEvents;
+
 // The rig the engine is running, as a document the editor can show, and switching rigs.
 //
-// The engine is the truth: whenever its rig, generation or applied parameters move (rigpa's
-// doing, a footswitch through pedald, ljoss, namchainctl) the document is read again with
-// `rig.get`. The rig list says which library rig that is: the engine's file when it loaded one
+// The engine is the truth. It pushes every change made by anyone else (a footswitch through pedald,
+// ljoss, namchainctl): values are applied to the document as they arrive, a patched document is
+// taken as it is, and a replaced rig is read again with `rig.get`, which also says what is missing.
+// An engine that can't push is polled as before: a moved rig, generation or applied parameter is a
+// read.
+//
+// The pedal keeps the rig (pedal.project, D17): it saves edits and keeps the undo history. With
+// pedald's events connected, undo and redo are asked of it; without them (a dev engine with no
+// pedald) this keeps a history of its own, as it did. Every edit is tagged with its gesture, and a
+// whole document carries the `seq` it was made from, so an edit made on a document somebody else has
+// since changed is refused rather than undoing theirs. The rig list says which library rig that is: the engine's file when it loaded one
 // from the library, or the document's name after a boot resumed `last.json` (pedald's rule).
 //
 // Startup (docs/spec.md): show what the engine runs; if it runs nothing, load the first rig in
@@ -35,6 +47,11 @@ class RigSession : public QObject
 
 public:
     RigSession(EngineSession *engine, RigList *rigs, QObject *parent = nullptr);
+    // The pedal service: rigs are loaded and undone through it once its events are connected.
+    void setPedal(PedaldClient *pedald, PedaldEvents *events);
+    // Whether undo and redo are the pedal's.
+    bool pedalUndo() const;
+    qint64 seq() const { return m_seq; }
 
     const RigDocument &document() const { return m_document; }
     bool hasDocument() const { return m_hasDocument; }
@@ -91,18 +108,18 @@ public:
     // rig, or the rig changing name underneath, starts it again.
     static constexpr int kHistoryLimit = 100;
     static constexpr int kParamStepMs = 1500;
-    bool canUndo() const { return !m_undo.isEmpty(); }
-    bool canRedo() const { return !m_redo.isEmpty(); }
+    bool canUndo() const { return pedalUndo() ? m_pedalUndo > 0 : !m_undo.isEmpty(); }
+    bool canRedo() const { return pedalUndo() ? m_pedalRedo > 0 : !m_redo.isEmpty(); }
     Q_INVOKABLE void undo();
     Q_INVOKABLE void redo();
     void clearHistory();
-    // The running rig was renamed (or saved under a new name): the engine's document takes the
-    // name too, so the library and the engine agree again. Not an edit: no history, no save.
-    void renameRunning(const QString &name);
     // A line for the footer (empty clears it).
     void say(const QString &message);
     // Reads the document again (after an edit the engine's status doesn't show).
     void refresh() { fetchDocument(); }
+
+    // An engine event, as EngineSession passes them on (tests feed these directly).
+    void onEngineEvent(const QJsonObject &frame);
 
     // For tests: which library rig an engine status names.
     static QString runningName(const QString &rigPath, const QString &rigName, const QStringList &names);
@@ -118,6 +135,11 @@ signals:
 
 private:
     void fetchDocument();
+    void adopt(QJsonObject running);
+    void startGesture();
+    void stepPedal(bool forwards);
+    void readPedalHistory();
+    void onPedalEvent(const QString &kind, const QJsonObject &data);
     void updateRunning();
     void maybeLoadFirst();
     void record();
@@ -148,6 +170,14 @@ private:
     bool m_fetchAgain = false;
     bool m_startupDone = false;
     qint64 m_seenParams = -1;
+    qint64 m_seq = -1;
+    // Our own ramped values aren't echoed back, so the document is read once they have settled.
+    QTimer m_settle;
+    QString m_gesture;
+    PedaldClient *m_pedald = nullptr;
+    PedaldEvents *m_pedalEvents = nullptr;
+    int m_pedalUndo = 0;
+    int m_pedalRedo = 0;
 };
 
 } // namespace rigpa

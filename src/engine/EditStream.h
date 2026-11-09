@@ -33,6 +33,9 @@ public:
     void submit(const QString &chain, const QList<QPair<QString, QJsonObject>> &ops);
 
     bool busy() const { return m_inFlight || !m_pending.isEmpty(); }
+    // The tag the next patches carry (docs/daemon.md: it comes back in their events' origin), which is
+    // how the pedal makes one undo step of one gesture.
+    void setTag(const QString &tag) { m_tag = tag; }
     int sentPatches() const { return m_sent; }
 
     // The address of a set_param on one node: a primitive by its id, a macro by its element when
@@ -41,8 +44,8 @@ public:
     static QJsonObject target(const QString &nodeId, const QString &element, bool macro, bool elementIsUnique);
 
 signals:
-    // A patch was answered: `kind` is "smooth" or "structural".
-    void answered(const QString &kind);
+    // A patch was answered: `kind` is "smooth" or "structural", and `seq` the document's after it.
+    void answered(const QString &kind, qint64 seq);
     void refused(const QString &message);
 
 private:
@@ -61,6 +64,7 @@ private:
     QElapsedTimer m_sinceSend;
     QTimer m_timer;
     int m_sent = 0;
+    QString m_tag;
 };
 
 } // namespace rigpa

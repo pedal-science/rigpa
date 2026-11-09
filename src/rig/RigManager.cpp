@@ -1,6 +1,7 @@
 #include "RigManager.h"
 
 #include "RigEdits.h"
+#include "pedald/PedaldEvents.h"
 #include "RigList.h"
 #include "RigSession.h"
 #include "engine/EngineSession.h"
@@ -15,18 +16,18 @@ RigManager::RigManager(EngineSession *engine, RigSession *session, RigList *rigs
                        QObject *parent)
     : QObject(parent), m_engine(engine), m_session(session), m_rigs(rigs), m_pedald(pedald)
 {
-    m_saveTimer.setSingleShot(true);
-    connect(&m_saveTimer, &QTimer::timeout, this, &RigManager::saveNow);
     connect(m_session, &RigSession::edited, this, [this] {
-        m_saveTo = m_rigs->running();
-        if (m_saveTo.isEmpty()) {
+        if (m_rigs->running().isEmpty()) {
             setSaveState(QStringLiteral("unsaved"));
             return;
         }
+        m_pending = true;
         setSaveState(QStringLiteral("pending"));
-        m_saveTimer.start(kSaveDelayMs);
     });
-    connect(m_rigs, &RigList::runningChanged, this, &RigManager::updateSaveState);
+    connect(m_rigs, &RigList::runningChanged, this, [this] {
+        m_pending = false; // another rig: its last edit was saved as it went
+        updateSaveState();
+    });
     connect(m_session, &RigSession::documentChanged, this, &RigManager::updateSaveState);
 
     connect(&m_ring, &FocusRing::activated, this, [this](int index) {
@@ -34,6 +35,16 @@ RigManager::RigManager(EngineSession *engine, RigSession *session, RigList *rigs
             confirm();
         else
             cancel();
+    });
+}
+
+void RigManager::setEvents(PedaldEvents *events)
+{
+    connect(events, &PedaldEvents::event, this, [this](const QString &kind, const QJsonObject &data) {
+        if (kind == QLatin1String("saved") && data.value(QStringLiteral("rig")).toString() == m_rigs->running()) {
+            m_pending = false;
+            updateSaveState();
+        }
     });
 }
 
@@ -47,78 +58,12 @@ void RigManager::setSaveState(const QString &state)
 
 void RigManager::updateSaveState()
 {
-    if (!m_session->hasDocument()) {
+    if (!m_session->hasDocument())
         setSaveState({});
-        return;
-    }
-    if (m_saving || m_saveTimer.isActive())
-        return;
-    if (m_rigs->running().isEmpty())
+    else if (m_rigs->running().isEmpty())
         setSaveState(QStringLiteral("unsaved"));
-    else if (m_saveState != QLatin1String("failed"))
-        setSaveState(QStringLiteral("saved"));
-}
-
-void RigManager::saveNow()
-{
-    m_saveTimer.stop();
-    if (m_saveTo.isEmpty() || m_saving)
-        return;
-    // Edits still on their way: the engine's document isn't the last one yet.
-    if (m_session->applying() || m_session->edits()->busy()) {
-        m_saveTimer.start(200);
-        return;
-    }
-    m_saving = true;
-    setSaveState(QStringLiteral("saving"));
-    const QString name = m_saveTo;
-    // Whatever was waiting for this save goes next, whether it worked or not.
-    const auto done = [this] {
-        m_saving = false;
-        for (auto &then : std::exchange(m_afterSave, {}))
-            then();
-    };
-    m_engine->client()->request(QStringLiteral("rig.get"), {}, [this, name, done](const EngineReply &reply) {
-        if (!reply.ok) {
-            done();
-            setSaveState(QStringLiteral("failed"));
-            m_session->say(tr("Couldn't save %1: %2").arg(name, reply.message.isEmpty() ? reply.code : reply.message));
-            return;
-        }
-        // The engine's document is what is running, and while a tuner is up that includes the node
-        // rigpa mounted around it. A rig file never holds one: it is a view's node, not the rig's
-        // (namchain docs/tuner.md).
-        QJsonObject document = reply.body.value(QStringLiteral("document")).toObject();
-        edits::stripTuner(document);
-        put(name, document, [this, name, done](const QString &error) {
-            if (!error.isEmpty()) {
-                setSaveState(QStringLiteral("failed"));
-                m_session->say(tr("Couldn't save %1: %2").arg(name, error));
-            } else {
-                // Another edit came while this one was saving: its own save is waiting.
-                setSaveState(m_saveTimer.isActive() ? QStringLiteral("pending") : QStringLiteral("saved"));
-            }
-            done();
-        });
-    });
-}
-
-void RigManager::whenSaved(std::function<void()> then)
-{
-    if (!m_saving && !m_saveTimer.isActive()) {
-        then();
-        return;
-    }
-    m_afterSave.append(std::move(then));
-    if (m_saveTimer.isActive())
-        saveNow();
-}
-
-void RigManager::put(const QString &name, QJsonObject document, std::function<void(const QString &)> done)
-{
-    document.insert(QStringLiteral("name"), name); // pedald: a rig's name is its file's
-    m_pedald->put(PedaldClient::rigPath(name), QJsonDocument(document).toJson(QJsonDocument::Compact),
-                  [done](const PedaldReply &reply) { done(reply.ok ? QString() : reply.error); });
+    else
+        setSaveState(m_pending ? QStringLiteral("pending") : QStringLiteral("saved"));
 }
 
 QJsonObject RigManager::emptyRig(const QString &name)
@@ -228,6 +173,8 @@ void RigManager::finish(const QString &error)
 
 void RigManager::rename(const QString &from, const QString &to)
 {
+    // pedald renames the file, the bank's entries, the history and, when it is playing, the
+    // engine's document too.
     const QByteArray body = QJsonDocument(QJsonObject{{"to", to}}).toJson(QJsonDocument::Compact);
     m_pedald->post(PedaldClient::rigPath(from, QStringLiteral("/rename")), body,
                    [this, from, to](const PedaldReply &reply) {
@@ -235,27 +182,29 @@ void RigManager::rename(const QString &from, const QString &to)
             finish(reply.error);
             return;
         }
-        if (m_rigs->running() == from) {
-            m_session->renameRunning(to);
+        if (m_rigs->running() == from)
             m_rigs->setRunning(to);
-        }
         m_rigs->refresh();
         finish();
     });
 }
 
-void RigManager::duplicate(const QString &from, const QString &to)
+void RigManager::create(const QString &name, const QJsonValue &from, bool load)
 {
-    m_pedald->get(PedaldClient::rigPath(from), [this, to](const PedaldReply &reply) {
+    const QJsonObject request{{"name", name}, {"from", from}, {"load", load}};
+    m_pedald->post(QStringLiteral("/library/rigs"), QJsonDocument(request).toJson(QJsonDocument::Compact),
+                   [this, name, load](const PedaldReply &reply) {
         if (!reply.ok) {
             finish(reply.error);
             return;
         }
-        put(to, reply.body.object(), [this](const QString &error) {
-            if (error.isEmpty())
-                m_rigs->refresh();
-            finish(error);
-        });
+        if (load) {
+            m_rigs->setRunning(name);
+            m_pending = false;
+            m_session->refresh();
+        }
+        m_rigs->refresh();
+        finish();
     });
 }
 
@@ -272,8 +221,7 @@ void RigManager::confirm(const QString &typed)
                 finish(reply.error);
                 return;
             }
-            if (m_rigs->running() == target)
-                m_rigs->setRunning({}); // still playing, but no longer in the library
+            // pedald moves the pedal to the bank's next rig, as a press would.
             m_rigs->refresh();
             finish();
         });
@@ -290,35 +238,15 @@ void RigManager::confirm(const QString &typed)
         return;
     }
     setBusy(true);
-    if (m_dialog == QLatin1String("new")) {
-        put(name, emptyRig(name), [this, name](const QString &error) {
-            if (!error.isEmpty()) {
-                finish(error);
-                return;
-            }
-            m_rigs->refresh();
-            m_session->loadRigNamed(name);
-            finish();
-        });
-    } else if (m_dialog == QLatin1String("rename")) {
-        // Anything waiting to be saved goes to the old name first, which pedald then renames.
-        whenSaved([this, target, name] { rename(target, name); });
-    } else if (m_dialog == QLatin1String("duplicate")) {
-        // A copy of the rig as it is now, saved first.
-        whenSaved([this, target, name] { duplicate(target, name); });
-    } else if (m_dialog == QLatin1String("saveAs")) {
-        put(name, m_session->document().json, [this, name](const QString &error) {
-            if (!error.isEmpty()) {
-                finish(error);
-                return;
-            }
-            m_session->renameRunning(name);
-            m_rigs->setRunning(name);
-            m_rigs->refresh();
-            setSaveState(QStringLiteral("saved"));
-            finish();
-        });
-    }
+    if (m_dialog == QLatin1String("new"))
+        create(name, QJsonValue::Null, true);
+    else if (m_dialog == QLatin1String("rename"))
+        rename(target, name);
+    else if (m_dialog == QLatin1String("duplicate"))
+        // The rig as it is stored now, edits and all, without what a footswitch is doing to it.
+        create(name, QStringLiteral(":running"), false);
+    else if (m_dialog == QLatin1String("saveAs"))
+        create(name, QStringLiteral(":running"), true);
 }
 
 } // namespace rigpa

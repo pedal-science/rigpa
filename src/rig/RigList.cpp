@@ -1,19 +1,25 @@
 #include "RigList.h"
 
+#include "pedald/PedaldEvents.h"
+
 #include <QJsonArray>
 #include <QJsonObject>
 
 namespace rigpa {
 
-RigList::RigList(PedaldClient *pedald, QObject *parent) : QAbstractListModel(parent), m_pedald(pedald)
+RigList::RigList(PedaldClient *pedald, QObject *parent) : QAbstractListModel(parent), m_pedald(pedald) {}
+
+void RigList::setEvents(PedaldEvents *events)
 {
-    m_timer.setInterval(kPollMs);
-    connect(&m_timer, &QTimer::timeout, this, &RigList::refresh);
+    connect(events, &PedaldEvents::event, this, [this](const QString &kind, const QJsonObject &data) {
+        if (kind == QLatin1String("hello")
+            || (kind == QLatin1String("library") && data.value(QStringLiteral("library")).toString() == QLatin1String("rigs")))
+            refresh();
+    });
 }
 
 void RigList::start()
 {
-    m_timer.start();
     refresh();
 }
 

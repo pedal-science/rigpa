@@ -86,8 +86,10 @@ void EngineClient::onConnected()
     m_timeoutTimer.start();
     m_helloId = QString::number(m_nextId++);
     m_pending.insert(m_helloId, {{}, m_clock.elapsed()});
-    send(m_helloId, QStringLiteral("engine.hello"),
-         {{QStringLiteral("protocol"), kProtocol}, {QStringLiteral("token"), m_token}});
+    QJsonObject hello{{QStringLiteral("protocol"), kProtocol}, {QStringLiteral("token"), m_token}};
+    if (!m_clientName.isEmpty())
+        hello.insert(QStringLiteral("client"), QJsonObject{{QStringLiteral("name"), m_clientName}});
+    send(m_helloId, QStringLiteral("engine.hello"), hello);
 }
 
 void EngineClient::onReadyRead()
@@ -107,6 +109,10 @@ void EngineClient::onSocketError()
 
 void EngineClient::handle(const QJsonObject &object)
 {
+    if (object.contains(QStringLiteral("event")) && !object.contains(QStringLiteral("id"))) {
+        emit event(object);
+        return;
+    }
     const QString id = object.value(QStringLiteral("id")).toString();
     auto it = m_pending.find(id);
     if (it == m_pending.end())

@@ -1,11 +1,12 @@
-// Rig management and auto-save against a real namchaind and pedald: an edit is saved to the
-// library about a second later; New, Rename (of the running rig), Copy and Delete go through
-// pedald; a rig that isn't in the library is saved with Save as.
+// Rig management against a real namchaind and pedald, which saves what is played: an edit shows as
+// pending until pedald says it saved it, about a second later; New, Rename (of the running rig),
+// Copy and Delete go through pedald, and deleting the playing rig moves the pedal on.
 #include <QJsonArray>
 #include <QtTest>
 
 #include "LiveDaemon.h"
 #include "pedald/PedaldClient.h"
+#include "pedald/PedaldEvents.h"
 #include "rig/RigEdits.h"
 #include "rig/RigList.h"
 #include "rig/RigManager.h"
@@ -22,6 +23,7 @@ class TestManageLive : public QObject
     Q_OBJECT
     LiveDaemon daemon;
     PedaldClient pedald;
+    PedaldEvents events{&pedald};
     RigList rigs{&pedald};
     EngineSession engine;
     RigSession session{&engine, &rigs};
@@ -52,8 +54,13 @@ private slots:
         daemon.start({"Clean", "Lead"}, "Clean");
         daemon.startPedald();
         pedald.setEndpoint("127.0.0.1", daemon.pedaldPort, daemon.token);
+        rigs.setEvents(&events);
+        session.setPedal(&pedald, &events);
+        manager.setEvents(&events);
         rigs.start();
+        events.start();
         engine.start("127.0.0.1", daemon.port, daemon.token);
+        QTRY_VERIFY_WITH_TIMEOUT(events.connected(), 15000);
         QTRY_VERIFY_WITH_TIMEOUT(rigs.loaded() && rigs.count() == 2, 15000);
         QTRY_VERIFY_WITH_TIMEOUT(session.hasDocument() && rigs.running() == "Clean", 15000);
         QTRY_COMPARE_WITH_TIMEOUT(manager.saveState(), QStringLiteral("saved"), 5000);
@@ -123,14 +130,21 @@ private slots:
         manager.ring()->activated(0); // apply on OK
         QVERIFY(settled());
         QTRY_VERIFY_WITH_TIMEOUT(!rigs.names().contains("Sparkle copy"), 5000);
-        // Still playing, but no longer in the library (once the engine's next status is in).
-        QTRY_COMPARE_WITH_TIMEOUT(rigs.running(), QString(), 5000);
-        QTRY_COMPARE_WITH_TIMEOUT(manager.saveState(), QStringLiteral("unsaved"), 5000);
+        // The pedal moves to the bank's next rig, as a press would.
+        QTRY_VERIFY_WITH_TIMEOUT(!rigs.running().isEmpty() && rigs.running() != "Sparkle copy", 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(manager.saveState(), QStringLiteral("saved"), 5000);
     }
 
     void saveAsKeepsAnUnsavedRig()
     {
-        // An edit to a rig the library doesn't have is not saved anywhere.
+        // A rig the library doesn't have: what an older app applied.
+        QJsonObject document = session.document().json;
+        document.insert("name", "Sketch");
+        bool applied = false;
+        engine.client()->request("rig.apply", {{"document", document}}, [&](const EngineReply &r) { applied = r.ok; });
+        QTRY_VERIFY_WITH_TIMEOUT(applied, 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(session.document().name, QStringLiteral("Sketch"), 5000);
+        QTRY_COMPARE_WITH_TIMEOUT(manager.saveState(), QStringLiteral("unsaved"), 5000);
         session.setBypass(kCab, false);
         QCOMPARE(manager.saveState(), QStringLiteral("unsaved"));
         manager.begin("saveAs");

@@ -1,8 +1,12 @@
 #include "RigSession.h"
 
 #include "RigEdits.h"
+#include "pedald/PedaldClient.h"
+#include "pedald/PedaldEvents.h"
 
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QUuid>
 #include <QJsonArray>
 #include <QJsonObject>
 
@@ -13,10 +17,18 @@ RigSession::RigSession(EngineSession *engine, RigList *rigs, QObject *parent)
 {
     // A smooth edit shows up as params_applied moving; a bypass or a structural set doesn't move
     // anything the status shows, so read the document again once the engine has answered.
-    connect(&m_edits, &EditStream::answered, this, [this](const QString &kind) {
+    connect(&m_edits, &EditStream::answered, this, [this](const QString &kind, qint64 seq) {
+        if (seq > m_seq)
+            m_seq = seq;
         if (kind != QLatin1String("smooth"))
             fetchDocument();
+        else if (m_engine->following())
+            m_settle.start(); // the engine doesn't tell a client of its own values
     });
+    m_settle.setSingleShot(true);
+    m_settle.setInterval(150);
+    connect(&m_settle, &QTimer::timeout, this, &RigSession::fetchDocument);
+    connect(m_engine, &EngineSession::engineEvent, this, &RigSession::onEngineEvent);
     connect(&m_edits, &EditStream::refused, this, [this](const QString &message) {
         say(tr("The engine refused the edit: %1").arg(message));
         fetchDocument();
@@ -33,8 +45,9 @@ RigSession::RigSession(EngineSession *engine, RigList *rigs, QObject *parent)
         maybeLoadFirst();
     });
     connect(m_engine, &EngineSession::statusChanged, this, [this] {
-        // A smoothed knob moves params_applied without a new generation: re-read for that too.
-        if (m_engine->paramsApplied() != m_seenParams && m_engine->hasRig()) {
+        // A smoothed knob moves params_applied without a new generation: re-read for that too,
+        // unless the engine is pushing the values themselves.
+        if (!m_engine->following() && m_engine->paramsApplied() != m_seenParams && m_engine->hasRig()) {
             m_seenParams = m_engine->paramsApplied();
             fetchDocument();
         }
@@ -91,11 +104,146 @@ void RigSession::loadRig(int index)
         loadRigNamed(m_rigs->nameAt(index));
 }
 
+void RigSession::setPedal(PedaldClient *pedald, PedaldEvents *events)
+{
+    m_pedald = pedald;
+    m_pedalEvents = events;
+    connect(events, &PedaldEvents::event, this, &RigSession::onPedalEvent);
+    connect(events, &PedaldEvents::connectedChanged, this, [this] {
+        emit historyChanged();
+        if (m_pedalEvents->connected())
+            readPedalHistory();
+    });
+    connect(m_engine, &EngineSession::rigChanged, this, &RigSession::readPedalHistory);
+}
+
+bool RigSession::pedalUndo() const
+{
+    return m_pedalEvents && m_pedalEvents->connected();
+}
+
+void RigSession::readPedalHistory()
+{
+    if (!pedalUndo())
+        return;
+    m_pedald->get(QStringLiteral("/running"), [this](const PedaldReply &reply) {
+        if (!reply.ok)
+            return;
+        const QJsonObject running = reply.body.object();
+        m_pedalUndo = running.value(QStringLiteral("undo")).toInt();
+        m_pedalRedo = running.value(QStringLiteral("redo")).toInt();
+        emit historyChanged();
+    });
+}
+
+void RigSession::onPedalEvent(const QString &kind, const QJsonObject &data)
+{
+    if (kind == QLatin1String("history")) {
+        m_pedalUndo = data.value(QStringLiteral("undo")).toInt();
+        m_pedalRedo = data.value(QStringLiteral("redo")).toInt();
+        emit historyChanged();
+    } else if (kind == QLatin1String("hello")) {
+        readPedalHistory();
+    }
+}
+
+void RigSession::onEngineEvent(const QJsonObject &frame)
+{
+    const QString kind = frame.value(QStringLiteral("event")).toString();
+    if (kind == QLatin1String("resync") || kind == QLatin1String("rig.replaced")) {
+        fetchDocument();
+        return;
+    }
+    const qint64 seq = frame.value(QStringLiteral("seq")).toInteger(-1);
+    if (kind == QLatin1String("rig.patched")) {
+        if (seq >= 0 && seq <= m_seq)
+            return;
+        // Our own apply is on its way: the engine's document after both is what to show.
+        if (m_applying > 0 || !m_hasDocument) {
+            fetchDocument();
+            return;
+        }
+        m_seq = seq;
+        adopt(frame.value(QStringLiteral("document")).toObject());
+        return;
+    }
+    if (kind != QLatin1String("rig.params") || !m_hasDocument)
+        return;
+    QJsonObject json = m_document.json;
+    QJsonArray chains = json.value(QStringLiteral("chains")).toArray();
+    bool changed = false;
+    for (const auto &v : frame.value(QStringLiteral("values")).toArray()) {
+        const QJsonObject value = v.toObject();
+        const qint64 valueSeq = value.value(QStringLiteral("seq")).toInteger(-1);
+        if (valueSeq >= 0 && valueSeq <= m_seq)
+            continue;
+        if (valueSeq > m_seq)
+            m_seq = valueSeq;
+        const QString node = value.value(QStringLiteral("node")).toString();
+        if (node.isEmpty())
+            continue; // runtime state, not in the document
+        const QString chainId = value.value(QStringLiteral("chain")).toString();
+        for (int c = 0; c < chains.size(); ++c) {
+            QJsonObject chain = chains.at(c).toObject();
+            if (!chainId.isEmpty() && chain.value(QStringLiteral("id")).toString() != chainId)
+                continue;
+            QJsonArray nodes = chain.value(QStringLiteral("nodes")).toArray();
+            for (int n = 0; n < nodes.size(); ++n) {
+                QJsonObject o = nodes.at(n).toObject();
+                if (o.value(QStringLiteral("id")).toString() != node)
+                    continue;
+                o.insert(value.value(QStringLiteral("param")).toString(), value.value(QStringLiteral("value")));
+                nodes.replace(n, o);
+                changed = true;
+            }
+            chain.insert(QStringLiteral("nodes"), nodes);
+            chains.replace(c, chain);
+        }
+    }
+    if (!changed)
+        return;
+    json.insert(QStringLiteral("chains"), chains);
+    m_document = RigDocument::parse(json);
+    emit documentChanged();
+}
+
+void RigSession::adopt(QJsonObject running)
+{
+    edits::stripTuner(running);
+    const QString before = m_document.name;
+    m_document = RigDocument::parse(running);
+    if (m_hasDocument && m_document.name != before && !pedalUndo())
+        clearHistory();
+    m_hasDocument = true;
+    emit documentChanged();
+}
+
+void RigSession::startGesture()
+{
+    m_gesture = QStringLiteral("gesture:") + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    m_edits.setTag(m_gesture);
+}
+
 void RigSession::loadRigNamed(const QString &name)
 {
     if (name.isEmpty())
         return;
     clearHistory();
+    if (m_pedald && m_pedald->configured()) {
+        // The footswitch's path (pedal-service.md, "Keeping the rig"): the pedal moves its bank
+        // position and warms the next rig, and every view is told the app did it.
+        const QByteArray body = QJsonDocument(QJsonObject{{QStringLiteral("rig"), name}}).toJson(QJsonDocument::Compact);
+        m_pedald->put(QStringLiteral("/running"), body, [this, name](const PedaldReply &reply) {
+            if (!reply.ok) {
+                say(tr("Couldn't load %1: %2").arg(name, reply.error));
+                return;
+            }
+            say({});
+            m_rigs->setRunning(name);
+            fetchDocument();
+        });
+        return;
+    }
     m_engine->client()->request(QStringLiteral("rig.load"), {{QStringLiteral("rig"), name + QStringLiteral(".json")}},
                                 [this, name](const EngineReply &reply) {
         if (!reply.ok) {
@@ -127,9 +275,12 @@ void RigSession::fetchDocument()
             // there). It is not part of the rig: strip it before the document becomes the model, or
             // the canvas would draw it, an undo step would keep it and a save would write it.
             QJsonObject running = reply.body.value(QStringLiteral("document")).toObject();
+            const qint64 seq = reply.body.value(QStringLiteral("seq")).toInteger(-1);
+            if (seq >= 0)
+                m_seq = seq;
             edits::stripTuner(running);
             m_document = RigDocument::parse(running);
-            if (m_hasDocument && m_document.name != before)
+            if (m_hasDocument && m_document.name != before && !pedalUndo())
                 clearHistory(); // another rig: its own history
             m_missing.clear();
             for (const auto &m : reply.body.value(QStringLiteral("missing_assets")).toArray())
@@ -203,6 +354,11 @@ void RigSession::record()
 {
     if (!m_hasDocument)
         return;
+    if (pedalUndo()) {
+        m_lastParamKey.clear();
+        emit edited();
+        return;
+    }
     m_undo.append(m_document.json);
     while (m_undo.size() > kHistoryLimit)
         m_undo.removeFirst();
@@ -222,8 +378,29 @@ void RigSession::clearHistory()
     emit historyChanged();
 }
 
+void RigSession::stepPedal(bool forwards)
+{
+    m_pedald->post(forwards ? QStringLiteral("/redo") : QStringLiteral("/undo"), QByteArray(""),
+                   [this, forwards](const PedaldReply &reply) {
+        if (!reply.ok) {
+            say(forwards ? tr("Nothing was redone: %1").arg(reply.error) : tr("Nothing was undone: %1").arg(reply.error));
+            readPedalHistory();
+            return;
+        }
+        say({});
+        m_pedalUndo = reply.body.object().value(QStringLiteral("undo")).toInt();
+        m_pedalRedo = reply.body.object().value(QStringLiteral("redo")).toInt();
+        emit historyChanged();
+        fetchDocument();
+    });
+}
+
 void RigSession::undo()
 {
+    if (pedalUndo()) {
+        stepPedal(false);
+        return;
+    }
     if (m_undo.isEmpty() || !m_hasDocument)
         return;
     m_redo.append(m_document.json);
@@ -236,6 +413,10 @@ void RigSession::undo()
 
 void RigSession::redo()
 {
+    if (pedalUndo()) {
+        stepPedal(true);
+        return;
+    }
     if (m_redo.isEmpty() || !m_hasDocument)
         return;
     m_undo.append(m_document.json);
@@ -246,22 +427,10 @@ void RigSession::redo()
     applyJson(after);
 }
 
-void RigSession::renameRunning(const QString &name)
-{
-    if (!m_hasDocument || name.isEmpty())
-        return;
-    QJsonObject json = m_document.json;
-    json.insert(QStringLiteral("name"), name);
-    // History snapshots are of this rig: they take the name as well, or undo would rename it back.
-    for (auto *list : {&m_undo, &m_redo})
-        for (QJsonObject &snapshot : *list)
-            snapshot.insert(QStringLiteral("name"), name);
-    applyJson(json);
-}
-
 void RigSession::applyDocument(const RigDocument &edited)
 {
     record();
+    startGesture();
     applyJson(edits::toJson(edited), true);
 }
 
@@ -276,15 +445,28 @@ void RigSession::applyJson(const QJsonObject &json, bool recorded)
     if (m_tuner)
         edits::injectTuner(published, m_tunerMuted);
     ++m_applying;
-    m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), published}},
-                                [this, recorded](const EngineReply &reply) {
-        if (!reply.ok && recorded && !m_undo.isEmpty()) {
+    QJsonObject params{{QStringLiteral("document"), published}};
+    if (recorded) {
+        // An edit: one gesture, made from the document at `m_seq`. If somebody else's change has
+        // landed since, the engine refuses it rather than this undoing theirs.
+        params.insert(QStringLiteral("tag"), m_gesture);
+        // Only while nothing of ours is on its way: our own change ahead of this one would move the
+        // document first, and this would be refused for it.
+        if (m_seq >= 0 && !m_edits.busy() && m_applying == 0)
+            params.insert(QStringLiteral("if_seq"), m_seq);
+    }
+    m_engine->client()->request(QStringLiteral("rig.apply"), params, [this, recorded](const EngineReply &reply) {
+        if (!reply.ok && recorded && !m_undo.isEmpty() && !pedalUndo()) {
             m_undo.removeLast(); // nothing changed, so there is nothing to undo
             emit historyChanged();
         }
         --m_applying;
+        if (reply.ok && reply.body.value(QStringLiteral("seq")).toInteger(-1) > m_seq)
+            m_seq = reply.body.value(QStringLiteral("seq")).toInteger();
         if (reply.ok)
             say({});
+        else if (reply.code == QLatin1String("conflict"))
+            say(tr("Someone else changed the rig first: showing theirs"));
         else if (reply.code == QLatin1String("over_budget"))
             // The engine lists every unit's cost after the sentence that matters.
             say(tr("Too much for the pedal: %1").arg(reply.message.section(QStringLiteral(" ("), 0, 0)));
@@ -317,6 +499,8 @@ void RigSession::publishRun()
     m_engine->client()->request(QStringLiteral("rig.apply"), {{QStringLiteral("document"), published}},
                                 [this](const EngineReply &reply) {
         --m_applying;
+        if (reply.ok && reply.body.value(QStringLiteral("seq")).toInteger(-1) > m_seq)
+            m_seq = reply.body.value(QStringLiteral("seq")).toInteger();
         if (!reply.ok)
             say(tr("The tuner could not be %1: %2")
                     .arg(m_tuner ? tr("mounted") : tr("removed"),
@@ -354,6 +538,8 @@ void RigSession::setTunerMuted(bool muted)
             {{QStringLiteral("chain"), id},
              {QStringLiteral("ops"), ops}},
             [this, muted](const EngineReply &reply) {
+                if (reply.ok && reply.body.value(QStringLiteral("seq")).toInteger(-1) > m_seq)
+                    m_seq = reply.body.value(QStringLiteral("seq")).toInteger();
                 if (reply.ok)
                     return;
                 say(tr("The tuner's switch did not move: %1")
@@ -406,6 +592,7 @@ void RigSession::setBypass(const QString &element, bool bypassed)
     }
     if (!ops.isEmpty()) {
         record();
+        startGesture();
         m_edits.submit(chainId, ops);
     }
 }
@@ -423,6 +610,7 @@ void RigSession::setParam(const QString &chainId, const RigNode &node, const QSt
     // One step per run of changes to one parameter.
     if (key != m_lastParamKey || !m_lastParamAt.isValid() || m_lastParamAt.elapsed() > kParamStepMs) {
         record();
+        startGesture();
         m_lastParamKey = key;
     }
     m_lastParamAt.start();
