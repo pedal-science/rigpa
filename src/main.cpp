@@ -14,6 +14,7 @@
 #include "pedald/PedaldStatus.h"
 #include "rig/NodeEditorModel.h"
 #include "rig/PaletteModel.h"
+#include "rig/Templates.h"
 #include "rig/PlayModel.h"
 #include "rig/RigManager.h"
 #include "rig/RigEditorModel.h"
@@ -66,7 +67,7 @@ int main(int argc, char *argv[])
         QStringLiteral("layout"));
     const QCommandLineOption inputOption(QStringLiteral("input"),
         QStringLiteral("Replay hardware controls once loaded (for demos and checks): '>' and '<' turn "
-                       "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette), 'N', 'R', 'C' "
+                       "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette), 'B' opens the Banks page, 'N', 'R', 'C' "
                        "and 'D' are the rig list's New, Rename, Copy and Delete."),
         QStringLiteral("keys"));
     const QCommandLineOption demoDragOption(QStringLiteral("demo-drag"),
@@ -110,6 +111,11 @@ int main(int argc, char *argv[])
     rigpa::NodeEditorModel nodeEditor(&rigSession, &engineSession, &editor, &library);
     rigpa::PickerModel picker(&library);
     rigpa::PaletteModel palette(&engineSession, &library);
+    rigpa::Templates templates;
+    templates.follow(&pedald, &pedalEvents);
+    editor.setTemplates(&templates);
+    nodeEditor.setTemplates(&templates);
+    palette.setTemplates(&templates);
     rigpa::RigManager manager(&engineSession, &rigSession, &rigs, &pedald);
     manager.setEvents(&pedalEvents);
     rigpa::TunerModel tuner;
@@ -121,11 +127,13 @@ int main(int argc, char *argv[])
     rigpa::PlayModel play(&rigSession, &editor, &engineSession);
     play.setEvents(&pedalEvents);
     rigpa::PedaldStatus pedalStatus(&pedalEvents);
+    rigpa::BanksModel banks(&pedalStatus, &pedald, &rigs);
     rigpa::App appObject(&config, &settings, &nav, &engineSession, &library, &rigs, &rigSession, &editor,
                          &nodeEditor, &picker, &palette, &manager, &tuner);
     appObject.setLayout(&layout);
     appObject.setPlay(&play);
     appObject.setPedal(&pedalStatus);
+    appObject.setBanks(&banks);
 
     // The rotary and apply in rig view: load a rig from the list.
     QObject::connect(&nav, &rigpa::Navigator::rigLoadRequested, &rigSession, &rigpa::RigSession::loadRig);
@@ -184,6 +192,7 @@ int main(int argc, char *argv[])
         const auto replay = [&nav, &appObject, keys] {
             for (const QChar c : keys) {
                 if (c == u'+') appObject.openPalette();
+                else if (c == u'B') appObject.openBanks();
                 else if (c == u'N') appObject.manager()->begin(QStringLiteral("new"));
                 else if (c == u'R') appObject.manager()->begin(QStringLiteral("rename"));
                 else if (c == u'C') appObject.manager()->begin(QStringLiteral("duplicate"));

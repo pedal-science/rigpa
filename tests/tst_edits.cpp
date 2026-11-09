@@ -153,6 +153,7 @@ private slots:
         QCOMPARE(edits::laneGainOf(s, 1).levelDb, -3.0);
         QCOMPARE(s.laneGains[2].json.value("gain").toDouble(), -1.0);
         QCOMPARE(s.laneGains[0].id, s.laneGains[0].element + "-gain"); // ljoss's form
+        QCOMPARE(s.laneGains[0].json.value("meta").toObject().value("kind").toString(), QStringLiteral("lane_gain"));
 
         // Back to 0 dB, unmuted and upright: no gain node at all.
         QVERIFY(edits::setLaneGain(back, kSplit, 0, {}));
@@ -160,6 +161,25 @@ private slots:
         back = reread(back);
         QVERIFY(back.chains[0].series[1].laneGains[0].id.isEmpty());
         QCOMPARE(back.chains[0].series[1].lanes.size(), 2);
+    }
+
+    // A Gain block placed last in a lane has ljoss's lane-gain shape (one nc.gain, "<element>-gain"),
+    // but its meta says it came from a template: it stays a block in the lane.
+    void aGainBlockLastInALaneIsABlock()
+    {
+        RigDocument doc = RigDocument::parse(fixture("Dual"));
+        RigElement gain;
+        gain.element = edits::newElementId();
+        gain.nodes.append(edits::newNode(gain.element, "gain", "nc.gain",
+                                         {{"gain_db", 3.0}, {"meta", QJsonObject{{"template", "util.gain"}, {"slot", "gain"}}}}));
+        const RigElement &section = doc.chains[0].series[1];
+        const int last = int(section.lanes[0].size());
+        QVERIFY(edits::insert(doc, gain, {0, {kSplit + "/0"}, last}));
+        const RigDocument back = reread(doc);
+        const RigElement &s = back.chains[0].series[1];
+        QCOMPARE(s.lanes[0].size(), last + 1);
+        QCOMPARE(s.lanes[0].last().element, gain.element);
+        QVERIFY(s.laneGains.value(0).id.isEmpty());
     }
 
     void newThings()

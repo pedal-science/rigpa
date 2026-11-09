@@ -62,6 +62,7 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
         visible: parent.inRigView && !parent.editingNode && !App.palette.isOpen
+        HeaderButton { label: qsTr("Banks"); enabled: App.pedal.reachable; onClicked: App.openBanks() }
         HeaderButton { label: "+"; enabled: App.rig.hasDocument && !App.palette.isOpen; onClicked: App.openPalette() }
         HeaderButton { label: qsTr("Undo"); enabled: App.rig.canUndo; onClicked: App.rig.undo() }
         HeaderButton { label: qsTr("Redo"); enabled: App.rig.canRedo; onClicked: App.rig.redo() }

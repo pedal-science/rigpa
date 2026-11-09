@@ -3,7 +3,7 @@ import Rigpa
 import Rigpa.Core
 
 // The compact layout's rig list, full screen: the library's rigs by name with the running one
-// marked, and New, Rename (or Save as…), Copy and Delete under them.
+// marked, and New, Rename (or Save as…), Copy, Delete and Banks under them.
 //
 // The rotary walks the rigs and then the four buttons. Apply on a rig loads it and goes home to
 // Play (Navigator does that); apply on a button opens its dialog, as a tap does.
@@ -17,7 +17,8 @@ Item {
         { label: qsTr("New"), enabled: true },
         { label: view.inLibrary ? qsTr("Rename") : qsTr("Save as…"), enabled: view.inLibrary || App.rig.hasDocument },
         { label: qsTr("Copy"), enabled: view.inLibrary },
-        { label: qsTr("Delete"), enabled: view.inLibrary }
+        { label: qsTr("Delete"), enabled: view.inLibrary },
+        { label: qsTr("Banks"), enabled: App.pedal.reachable }
     ]
 
     // The ring's stops: one per rig, then one per button.
@@ -38,6 +39,7 @@ Item {
         case 1: App.manager.begin(view.inLibrary ? "rename" : "saveAs"); break
         case 2: App.manager.begin("duplicate"); break
         case 3: App.manager.begin("delete"); break
+        case 4: App.openBanks(); break
         }
     }
     function load(index) {
@@ -139,7 +141,7 @@ Item {
             delegate: HeaderButton {
                 required property int index
                 required property var modelData
-                width: (view.width - 32 - 30) / 4
+                width: (view.width - 32 - 10 * (view.actions.length - 1)) / view.actions.length
                 height: 56
                 base: Theme.raised
                 label: modelData.label

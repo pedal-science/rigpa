@@ -10,7 +10,11 @@
 #include "engine/EngineSession.h"
 #include "pedald/PedaldClient.h"
 #include "pedald/PedaldEvents.h"
+#include "rig/NodeEditorModel.h"
+#include "rig/PaletteModel.h"
 #include "rig/PlayModel.h"
+#include "rig/RigEdits.h"
+#include "rig/Templates.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
 #include "rig/RigSession.h"
@@ -32,6 +36,7 @@ class TestFollowLive : public QObject
     RigSession session{&engine, &rigs};
     RigEditorModel editor{&session, nullptr};
     PlayModel play{&session, &editor, &engine};
+    Templates templates;
     EngineClient ljoss;
 
     QJsonObject cabNode()
@@ -63,6 +68,8 @@ private slots:
         rigs.setEvents(&events);
         session.setPedal(&pedald, &events);
         play.setEvents(&events);
+        templates.follow(&pedald, &events);
+        editor.setTemplates(&templates);
         rigs.start();
         events.start();
         engine.start("127.0.0.1", daemon.port, daemon.token);
@@ -104,6 +111,48 @@ private slots:
         QTRY_VERIFY_WITH_TIMEOUT(done, 5000);
         QTRY_COMPARE_WITH_TIMEOUT(play.lastChange(), QStringLiteral("Rig up → Lead"), 5000);
         QTRY_COMPARE_WITH_TIMEOUT(rigs.running(), QStringLiteral("Lead"), 5000);
+    }
+
+    // A block from the pedal's templates: added, named by its template, and edited with its own
+    // controls, which reach the engine as the engine's values.
+    void aTemplateBlockIsEditedWithItsOwnControls()
+    {
+        QTRY_COMPARE_WITH_TIMEOUT(templates.all().size(), 27, 5000);
+        PaletteModel palette(&engine, nullptr);
+        palette.setTemplates(&templates);
+        const auto made = palette.make(palette.indexOfType("eq.lowcut"));
+        QVERIFY(made);
+        RigDocument doc = session.document();
+        QVERIFY(edits::insert(doc, *made, {0, {}, 0}));
+        session.applyDocument(doc);
+        QTRY_VERIFY_WITH_TIMEOUT(!session.applying() && session.findElement(made->element), 5000);
+        QCOMPARE(editor.itemFor(made->element)->title, QStringLiteral("Low Cut"));
+
+        NodeEditorModel node(&session, &engine, &editor, nullptr);
+        node.setTemplates(&templates);
+        node.open(made->element);
+        QCOMPARE(node.rowCount(), 2);
+        QCOMPARE(node.paramAt(0), QStringLiteral("freq"));
+        QCOMPARE(node.valueAt(0), 80.0);
+        node.setPosition(0, (200.0 - 20) / (500 - 20));
+        node.release(0);
+        const auto lowCut = [&] {
+            for (const auto &n : session.document().json.value("chains").toArray()[0].toObject().value("nodes").toArray())
+                if (n.toObject().value("element").toString() == made->element)
+                    return n.toObject().value("low_cut").toDouble();
+            return -1.0;
+        };
+        QTRY_VERIFY_WITH_TIMEOUT(qAbs(lowCut() - 200) < 1, 5000);
+        node.choose(1, 1); // 24 dB
+        QTRY_VERIFY_WITH_TIMEOUT(!session.edits()->busy(), 5000);
+        session.refresh();
+        QTRY_COMPARE_WITH_TIMEOUT([&] {
+            for (const auto &n : session.document().json.value("chains").toArray()[0].toObject().value("nodes").toArray())
+                if (n.toObject().value("element").toString() == made->element)
+                    return n.toObject().value("low_slope").toString();
+            return QString();
+        }(), QStringLiteral("24"), 5000);
+        node.close();
     }
 
     void loadingARigGoesThroughThePedal()

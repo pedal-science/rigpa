@@ -76,6 +76,8 @@ public:
     };
 
     explicit RigEditorModel(RigSession *session, Library *library, QObject *parent = nullptr);
+    // A block made from a template is shown by the template's name, with its model or IR under it.
+    void setTemplates(class Templates *templates);
 
     qreal availableWidth() const { return m_availableWidth; }
     void setAvailableWidth(qreal width);
@@ -143,6 +145,7 @@ private:
 
     RigSession *m_session;
     Library *m_library;
+    class Templates *m_templates = nullptr;
     Style m_style;
     qreal m_availableWidth = 1200;
     QList<Item> m_items;

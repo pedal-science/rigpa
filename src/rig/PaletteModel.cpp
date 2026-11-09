@@ -1,6 +1,7 @@
 #include "PaletteModel.h"
 
 #include "RigEdits.h"
+#include "Templates.h"
 #include "engine/EngineSession.h"
 #include "library/Library.h"
 
@@ -36,11 +37,28 @@ PaletteModel::PaletteModel(EngineSession *engine, Library *library, QObject *par
     rebuild();
 }
 
+void PaletteModel::setTemplates(Templates *templates)
+{
+    m_templates = templates;
+    connect(templates, &Templates::changed, this, &PaletteModel::rebuild);
+    rebuild();
+}
+
 void PaletteModel::rebuild()
 {
     beginResetModel();
     m_entries.clear();
-    m_entries.append({QStringLiteral("amp"), {}, tr("Amp"), tr("A NAM model and a tone stack")});
+    const bool templates = m_templates && !m_templates->all().isEmpty();
+    if (templates) {
+        for (const Templates::Template &t : m_templates->all()) {
+            QString category = t.category == QLatin1String("eq") ? QStringLiteral("EQ") : t.category;
+            if (!category.isEmpty())
+                category[0] = category[0].toUpper();
+            m_entries.append({QStringLiteral("template"), t.id, t.name, category + QStringLiteral(" · ") + t.subtitle});
+        }
+    } else {
+        m_entries.append({QStringLiteral("amp"), {}, tr("Amp"), tr("A NAM model and a tone stack")});
+    }
     m_entries.append({QStringLiteral("section"), {}, tr("Parallel split"), tr("Two lanes, mixed back together")});
     const Schema &schema = m_engine->schema();
     for (const QString &id : schema.typeIds()) {
@@ -94,6 +112,12 @@ int PaletteModel::indexOfType(const QString &type) const
 std::optional<RigNode> PaletteModel::node(const QString &element, const QString &type, QString *why) const
 {
     QJsonObject params;
+    return node(element, type, suffixFor(type), params, why);
+}
+
+std::optional<RigNode> PaletteModel::node(const QString &element, const QString &type, const QString &suffix,
+                                          QJsonObject params, QString *why) const
+{
     if (const NodeTypeSpec *t = m_engine->schema().type(type)) {
         for (const ParamSpec &p : t->params) {
             if (p.optionsFrom.isEmpty())
@@ -106,10 +130,11 @@ std::optional<RigNode> PaletteModel::node(const QString &element, const QString 
                     *why = kind == LibraryEntry::Ir ? tr("There are no IRs in the library") : tr("There are no models in the library");
                 return std::nullopt;
             }
-            params.insert(p.id, entries.first().id);
+            if (!params.contains(p.id))
+                params.insert(p.id, entries.first().id);
         }
     }
-    return edits::newNode(element, suffixFor(type), type, params);
+    return edits::newNode(element, suffix, type, params);
 }
 
 std::optional<RigElement> PaletteModel::make(int row, QString *why) const
@@ -121,6 +146,28 @@ std::optional<RigElement> PaletteModel::make(int row, QString *why) const
         return edits::newSection(2);
     RigElement block;
     block.element = edits::newElementId();
+    if (e.kind == QLatin1String("template")) {
+        const Templates::Template *tpl = m_templates ? m_templates->find(e.type) : nullptr;
+        if (!tpl)
+            return std::nullopt;
+        for (const Templates::Node &n : tpl->nodes) {
+            // Its fixed values, each control at its default as the engine's value, and where it came
+            // from, so every app shows it as this block (pedal-service.md, "The catalogue").
+            QJsonObject params = n.fixed;
+            for (const Templates::Control &c : tpl->controls) {
+                if (c.slot != n.slot)
+                    continue;
+                const QJsonValue value = c.kind == QLatin1String("options") ? QJsonValue(c.defaultOption) : QJsonValue(c.defaultValue);
+                params.insert(c.param, Templates::toEngine(c.transform, value));
+            }
+            params.insert(QStringLiteral("meta"), QJsonObject{{QStringLiteral("template"), tpl->id}, {QStringLiteral("slot"), n.slot}});
+            const auto made = node(block.element, n.type, n.slot, params, why);
+            if (!made)
+                return std::nullopt;
+            block.nodes.append(*made);
+        }
+        return block;
+    }
     const QStringList types = e.kind == QLatin1String("amp")
                                   ? QStringList{QStringLiteral("nc.nam"), QStringLiteral("fx.amp.tonestack")}
                                   : QStringList{e.type};

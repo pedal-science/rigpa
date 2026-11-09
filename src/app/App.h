@@ -9,6 +9,7 @@
 #include "library/PickerModel.h"
 #include "rig/NodeEditorModel.h"
 #include "rig/PaletteModel.h"
+#include "rig/BanksModel.h"
 #include "rig/RigManager.h"
 #include "rig/RigEditorModel.h"
 #include "rig/RigList.h"
@@ -49,6 +50,7 @@ class App : public QObject
     Q_PROPERTY(rigpa::LayoutSpec *layout READ layout CONSTANT)
     Q_PROPERTY(rigpa::PlayModel *play READ play CONSTANT)
     Q_PROPERTY(rigpa::PedaldStatus *pedal READ pedal CONSTANT)
+    Q_PROPERTY(rigpa::BanksModel *banks READ banks CONSTANT)
 
 public:
     App(Config *config, Settings *settings, Navigator *nav, EngineSession *engine,
@@ -76,6 +78,10 @@ public:
     LayoutSpec *layout() const { return m_layout; }
     PlayModel *play() const { return m_play; }
     PedaldStatus *pedal() const { return m_pedal; }
+    BanksModel *banks() const { return m_banks; }
+    void setBanks(BanksModel *banks) { m_banks = banks; }
+    // The Banks page, over the Rigs view (compact) or the rig view (the bar).
+    Q_INVOKABLE void openBanks();
     void setLayout(LayoutSpec *layout) { m_layout = layout; }
     void setPlay(PlayModel *play) { m_play = play; }
     void setPedal(PedaldStatus *pedal) { m_pedal = pedal; }
@@ -108,6 +114,7 @@ private:
     LayoutSpec *m_layout = nullptr;
     PlayModel *m_play = nullptr;
     PedaldStatus *m_pedal = nullptr;
+    BanksModel *m_banks = nullptr;
 };
 
 } // namespace rigpa

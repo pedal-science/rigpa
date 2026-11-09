@@ -1,5 +1,7 @@
 #include "NodeEditorModel.h"
 
+#include "Templates.h"
+
 #include "RigEdits.h"
 #include "RigEditorModel.h"
 #include "RigSession.h"
@@ -170,7 +172,9 @@ void NodeEditorModel::rebuild()
         m_note = tr("Waiting for the engine's catalogue of parameters…");
     }
 
-    if (e->kind == RigElement::Block) {
+    if (e->kind == RigElement::Block && buildTemplate(*e)) {
+        // done: the template's controls
+    } else if (e->kind == RigElement::Block) {
         for (const RigNode &n : e->nodes) {
             const NodeTypeSpec *t = schema.type(n.type);
             if (!t)
@@ -224,6 +228,86 @@ void NodeEditorModel::rebuild()
     endResetModel();
     updateRing();
     emit changed();
+}
+
+bool NodeEditorModel::buildTemplate(const RigElement &e)
+{
+    QList<QJsonObject> nodes;
+    for (const RigNode &n : e.nodes)
+        nodes.append(n.json);
+    const Templates::Template *tpl = m_templates ? m_templates->forNodes(nodes) : nullptr;
+    if (!tpl)
+        return false;
+    const Schema &schema = m_engine->schema();
+    const auto nodeFor = [&](const QString &slot) -> const RigNode * {
+        for (const RigNode &n : e.nodes)
+            if (n.json.value(QStringLiteral("meta")).toObject().value(QStringLiteral("slot")).toString() == slot)
+                return &n;
+        return nullptr;
+    };
+    bool first = true;
+    for (const RigNode &n : e.nodes)
+        if (const NodeTypeSpec *t = schema.type(n.type))
+            m_bypassable = m_bypassable || t->bypassable;
+    // The model or IR first: it is what the block plays.
+    for (const Templates::Node &tn : tpl->nodes) {
+        const RigNode *n = nodeFor(tn.slot);
+        const NodeTypeSpec *t = n ? schema.type(n->type) : nullptr;
+        if (!t)
+            continue;
+        for (auto it = tn.assets.begin(); it != tn.assets.end(); ++it) {
+            const ParamSpec *p = t->param(it.key());
+            if (!p)
+                continue;
+            Control c;
+            c.kind = QStringLiteral("picker");
+            c.node = *n;
+            c.spec = *p;
+            c.group = tpl->name;
+            c.firstOfGroup = std::exchange(first, false);
+            m_controls.append(c);
+        }
+    }
+    for (const Templates::Control &tc : tpl->controls) {
+        const RigNode *n = nodeFor(tc.slot);
+        if (!n)
+            continue;
+        const NodeTypeSpec *t = schema.type(n->type);
+        const ParamSpec *engineSpec = t ? t->param(tc.param) : nullptr;
+        Control c;
+        c.node = *n;
+        c.templated = true;
+        c.param = tc.param;
+        c.transform = tc.transform;
+        c.group = tpl->name;
+        c.firstOfGroup = std::exchange(first, false);
+        c.spec.id = tc.id;
+        c.spec.name = tc.name;
+        c.spec.unit = tc.unit;
+        c.spec.rampable = engineSpec && engineSpec->rampable;
+        if (engineSpec && engineSpec->hasDefault)
+            c.engineDefault = engineSpec->defaultValue;
+        if (tc.kind == QLatin1String("options")) {
+            c.kind = QStringLiteral("choice");
+            c.spec.kind = ParamSpec::Option;
+            for (const QString &option : tc.options)
+                c.spec.options.append({option, option});
+            c.spec.hasDefault = true;
+            c.spec.defaultValue = std::max<qsizetype>(0, tc.options.indexOf(tc.defaultOption));
+        } else {
+            c.kind = QStringLiteral("knob");
+            c.spec.kind = ParamSpec::Number;
+            c.spec.min = tc.min;
+            c.spec.max = tc.max;
+            c.spec.step = tc.step;
+            c.spec.hasDefault = true;
+            c.spec.defaultValue = tc.defaultValue;
+        }
+        m_controls.append(c);
+    }
+    if (m_controls.isEmpty())
+        m_note = tr("Nothing to adjust here.");
+    return true;
 }
 
 QStringList NodeEditorModel::shapeOf(const RigElement &e)
@@ -365,6 +449,25 @@ void NodeEditorModel::readValue(Control &c, bool keepHeld) const
 {
     if (keepHeld && (c.dirty || (c.held.isValid() && c.held.elapsed() < kHoldMs)))
         return;
+    if (c.templated) {
+        // The engine's value, as the control's. One the document doesn't set is the engine's default.
+        QJsonValue engine = c.node.json.value(c.param);
+        if (engine.isUndefined() || engine.isNull())
+            engine = c.engineDefault ? QJsonValue(*c.engineDefault) : QJsonValue();
+        const QJsonValue shown = engine.isUndefined() || engine.isNull() ? QJsonValue() : Templates::fromEngine(c.transform, engine);
+        if (c.spec.kind == ParamSpec::Option) {
+            const int at = int(c.spec.options.size()) > 0 ? [&] {
+                for (int i = 0; i < c.spec.options.size(); ++i)
+                    if (c.spec.options.at(i).value == shown.toString())
+                        return i;
+                return int(c.spec.defaultValue);
+            }() : 0;
+            c.value = at;
+        } else {
+            c.value = shown.isDouble() ? std::clamp(shown.toDouble(), *c.spec.min, *c.spec.max) : c.spec.defaultValue;
+        }
+        return;
+    }
     const QJsonValue v = c.node.json.value(c.spec.id);
     switch (c.spec.kind) {
     case ParamSpec::Number:
@@ -581,6 +684,10 @@ void NodeEditorModel::send(int index)
         value = c.spec.optionsFrom.isEmpty() ? QJsonValue(c.spec.options.value(int(c.value)).value) : QJsonValue(c.ref);
         break;
     case ParamSpec::Other:
+        return;
+    }
+    if (c.templated) {
+        m_session->setParam(m_chain, c.node, c.param, Templates::toEngine(c.transform, value));
         return;
     }
     m_session->setParam(m_chain, c.node, c.spec.id, value);

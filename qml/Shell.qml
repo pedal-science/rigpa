@@ -28,7 +28,7 @@ Item {
             height: Theme.contentHeight
             clip: true
             // While an overlay is open, the view under it takes no input.
-            readonly property bool overlaid: App.nodeEditor.isOpen || App.picker.isOpen || App.palette.isOpen
+            readonly property bool overlaid: App.nodeEditor.isOpen || App.picker.isOpen || App.palette.isOpen || App.banks.isOpen
                                              || App.manager.dialog !== ""
 
             RigView {
@@ -71,6 +71,10 @@ Item {
             AddPanel {
                 anchors.fill: parent
                 visible: App.palette.isOpen
+            }
+            BanksPanel {
+                anchors.fill: parent
+                visible: App.banks.isOpen
             }
             RigDialog {
                 anchors.fill: parent

@@ -252,7 +252,8 @@ bool setLaneGain(RigDocument &doc, const QString &section, int lane, const LaneG
     }
     if (node.id.isEmpty()) {
         const QString element = newElementId();
-        node = newNode(element, QStringLiteral("gain"), QStringLiteral("nc.gain"));
+        node = newNode(element, QStringLiteral("gain"), QStringLiteral("nc.gain"),
+                       {{QStringLiteral("meta"), QJsonObject{{QStringLiteral("kind"), QStringLiteral("lane_gain")}}}});
     }
     setParam(node, QStringLiteral("gain"), gain.mute ? 0.0 : gain.linear());
     QJsonObject meta = node.json.value(QStringLiteral("meta")).toObject();

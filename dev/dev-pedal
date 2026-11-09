@@ -151,7 +151,8 @@ cat > "$DEV/pedald.json" <<JSON
   "http_host": "127.0.0.1",
   "http_port": $PEDALD_PORT,
   "state_root": "$DEV/state",
-  "cache_root": "$DEV/cache"
+  "cache_root": "$DEV/cache",
+  "autosave": true
 }
 JSON
 [[ -e $RIGPA_CONFIG ]] || cat > "$RIGPA_CONFIG" <<JSON

@@ -62,6 +62,9 @@ public:
         CurrentRole, StreamingRole, FirstOfGroupRole, ParamRole,
     };
 
+    // A block made from a template shows the template's controls (its 0–10 knobs), each turned into
+    // the engine's value on the way out and back again on the way in, and a picker for its model or IR.
+    void setTemplates(class Templates *templates) { m_templates = templates; }
     NodeEditorModel(RigSession *session, EngineSession *engine, RigEditorModel *editor, Library *library,
                     QObject *parent = nullptr);
 
@@ -141,7 +144,14 @@ private:
         QString ref;          // a picker's library id
         bool dirty = false;   // changed here, not yet sent (a parameter the engine doesn't ramp)
         QElapsedTimer held;   // since it last moved here
+        // A template's control: `spec` is the control as the player sees it, and these say which
+        // engine parameter it sets and how its number becomes the engine's.
+        bool templated = false;
+        QString param;
+        QJsonObject transform;
+        std::optional<double> engineDefault;
     };
+    bool buildTemplate(const RigElement &e);
 
     void rebuild();
     void readValues(bool keepHeld);
@@ -165,6 +175,7 @@ private:
     EngineSession *m_engine;
     RigEditorModel *m_editor;
     Library *m_library;
+    class Templates *m_templates = nullptr;
     FocusRing m_ring;
     QString m_element;
     QString m_chain;

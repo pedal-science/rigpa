@@ -47,7 +47,7 @@ public:
     enum RigFocus { RigListFocus, RigEditorFocus };
     Q_ENUM(RigFocus)
     // Things opened on top of a main view, deepest last.
-    enum Overlay { NoOverlay, NodeEditor, Picker, Palette, Dialog };
+    enum Overlay { NoOverlay, NodeEditor, Picker, Palette, Dialog, Banks };
     Q_ENUM(Overlay)
 
     explicit Navigator(QObject *parent = nullptr);

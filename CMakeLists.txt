@@ -36,6 +36,8 @@ qt_add_qml_module(rigpa_core
         src/layout/Flow.cpp src/layout/Flow.h
         src/pedald/PedaldClient.cpp src/pedald/PedaldClient.h
         src/pedald/PedaldEvents.cpp src/pedald/PedaldEvents.h
+        src/rig/Templates.cpp src/rig/Templates.h
+        src/rig/BanksModel.cpp src/rig/BanksModel.h
         src/pedald/PedaldStatus.cpp src/pedald/PedaldStatus.h
         src/rig/FlowEqModel.cpp src/rig/FlowEqModel.h
         src/rig/NodeEditorModel.cpp src/rig/NodeEditorModel.h
@@ -80,6 +82,7 @@ qt_add_qml_module(rigpa
         qml/views/Picker.qml
         qml/views/AddPanel.qml
         qml/views/RigDialog.qml
+        qml/views/BanksPanel.qml
         qml/views/TunerNote.qml
         qml/views/TunerScale.qml
         qml/views/TunerStrobe.qml

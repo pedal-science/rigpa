@@ -26,12 +26,19 @@ RigNode nodeFrom(const QJsonObject &o)
     return n;
 }
 
-// A lane's own gain, as ljoss writes it: one nc.gain whose id is its element plus "-gain".
+// A lane's own gain. Its `meta` says so (`{"kind": "lane_gain"}`, pedal-service.md, "The catalogue"),
+// and a block placed by a template says it is one; with neither, ljoss's old rule: one nc.gain whose
+// id is its element plus "-gain".
 bool isLaneGain(const RigElement &e)
 {
     if (e.kind != RigElement::Block || e.nodes.size() != 1)
         return false;
     const RigNode &n = e.nodes.first();
+    const QJsonObject meta = n.json.value(QStringLiteral("meta")).toObject();
+    if (meta.value(QStringLiteral("kind")).toString() == QLatin1String("lane_gain"))
+        return true;
+    if (meta.contains(QStringLiteral("template")))
+        return false;
     return n.type == QLatin1String("nc.gain") && !n.element.isEmpty() && n.id == n.element + QStringLiteral("-gain");
 }
 

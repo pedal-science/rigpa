@@ -1,5 +1,7 @@
 #include "RigEditorModel.h"
 
+#include "Templates.h"
+
 #include "RigSession.h"
 #include "library/Library.h"
 
@@ -239,6 +241,12 @@ void RigEditorModel::wire(const QRectF &r)
         m_wires.append(r);
 }
 
+void RigEditorModel::setTemplates(Templates *templates)
+{
+    m_templates = templates;
+    connect(templates, &Templates::changed, this, [this] { relayout(); });
+}
+
 void RigEditorModel::describe(const RigElement &e, Item &item) const
 {
     item.element = e.element;
@@ -271,6 +279,17 @@ void RigEditorModel::describe(const RigElement &e, Item &item) const
         kinds.append(typeLabel(n.type));
     }
     kinds.removeDuplicates();
+    QList<QJsonObject> nodes;
+    for (const RigNode &n : e.nodes)
+        nodes.append(n.json);
+    if (const Templates::Template *tpl = m_templates ? m_templates->forNodes(nodes) : nullptr) {
+        // The template's name, and under it what it plays: the model or IR, when it has one.
+        item.title = tpl->name;
+        item.subtitle = title.isEmpty() ? tpl->subtitle : title;
+        item.color = colorFor(e.nodes.first().type);
+        item.bypassed = allBypassed;
+        return;
+    }
     if (title.isEmpty()) {
         title = kinds.value(0);
         kinds.removeFirst();

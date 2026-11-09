@@ -13,9 +13,10 @@ namespace rigpa {
 class EngineSession;
 class Library;
 
-// What can be added to a rig (the header's +): an amp (a NAM model and a tone stack, as ljoss
-// makes it), a parallel split, and every node type the engine's schema offers that a rig is
-// built from (not its plumbing: input, output, split, mix). The rotary moves through the list,
+// What can be added to a rig (the header's +): the pedal's block templates (pedald's catalogue, the
+// blocks ljoss offers too), a parallel split, and every node type the engine's schema offers that a
+// rig is built from (not its plumbing: input, output, split, mix). Without the pedal's catalogue, an
+// amp (a NAM model and a tone stack) stands in for the templates. The rotary moves through the list,
 // apply or a tap chooses, back closes.
 class PaletteModel : public QAbstractListModel
 {
@@ -29,6 +30,7 @@ public:
     enum Role { NameRole = Qt::UserRole + 1, DetailRole, TintRole };
 
     PaletteModel(EngineSession *engine, Library *library, QObject *parent = nullptr);
+    void setTemplates(class Templates *templates);
 
     bool isOpen() const { return m_open; }
     FocusRing *ring() { return &m_ring; }
@@ -51,15 +53,19 @@ signals:
 
 private:
     struct Entry {
-        QString kind;   // "amp", "section", "type"
-        QString type;   // for "type"
+        QString kind;   // "template", "amp", "section", "type"
+        QString type;   // for "type"; the template's id for "template"
         QString name, detail;
     };
     void rebuild();
     std::optional<RigNode> node(const QString &element, const QString &type, QString *why) const;
+    // One node with these values, a model or IR it needs filled from the library if they don't say.
+    std::optional<RigNode> node(const QString &element, const QString &type, const QString &suffix,
+                                QJsonObject params, QString *why) const;
 
     EngineSession *m_engine;
     Library *m_library;
+    class Templates *m_templates = nullptr;
     FocusRing m_ring;
     QList<Entry> m_entries;
     bool m_open = false;

@@ -81,6 +81,14 @@ void App::openNodeEditor(int select)
         m_nav->openOverlay(Navigator::NodeEditor, m_nodeEditor->ring());
 }
 
+void App::openBanks()
+{
+    if (!m_banks)
+        return;
+    m_banks->open();
+    m_nav->openOverlay(Navigator::Banks, m_banks->ring());
+}
+
 void App::openPalette()
 {
     if (!m_rig->hasDocument() || m_nav->overlay() != Navigator::NoOverlay)

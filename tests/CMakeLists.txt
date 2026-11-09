@@ -21,6 +21,11 @@ rigpa_test(tst_tuner)
 rigpa_test(tst_rig)
 rigpa_test(tst_schema)
 rigpa_test(tst_edits)
+rigpa_test(tst_templates)
+rigpa_test(tst_banks)
+# The templates pedald serves, read from pedal.project beside this repo.
+target_compile_definitions(tst_templates PRIVATE
+    RIGPA_TEMPLATES="${PROJECT_SOURCE_DIR}/../pedal.project/devices/common/rootfs/usr/local/lib/pedald/templates.json")
 rigpa_test(tst_layout)
 # It runs the app once, to see a bad --layout refused.
 target_compile_definitions(tst_layout PRIVATE RIGPA_BINARY="$<TARGET_FILE:rigpa>")
