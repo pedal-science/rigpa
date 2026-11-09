@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
         QStringLiteral("layout"));
     const QCommandLineOption inputOption(QStringLiteral("input"),
         QStringLiteral("Replay hardware controls once loaded (for demos and checks): '>' and '<' turn "
-                       "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette), 'B' opens the Banks page, 'N', 'R', 'C' "
+                       "the rotary, '.' is apply, ',' is back, '+' is the header's + (the palette), 'B' opens the Banks page, 'U' and 'Y' are Undo and Redo, 'N', 'R', 'C' "
                        "and 'D' are the rig list's New, Rename, Copy and Delete."),
         QStringLiteral("keys"));
     const QCommandLineOption demoDragOption(QStringLiteral("demo-drag"),
@@ -193,6 +193,8 @@ int main(int argc, char *argv[])
             for (const QChar c : keys) {
                 if (c == u'+') appObject.openPalette();
                 else if (c == u'B') appObject.openBanks();
+                else if (c == u'U') appObject.rig()->undo();
+                else if (c == u'Y') appObject.rig()->redo();
                 else if (c == u'N') appObject.manager()->begin(QStringLiteral("new"));
                 else if (c == u'R') appObject.manager()->begin(QStringLiteral("rename"));
                 else if (c == u'C') appObject.manager()->begin(QStringLiteral("duplicate"));
