@@ -20,6 +20,10 @@ private slots:
     void initTestCase()
     {
         QFile file(QStringLiteral(RIGPA_TEMPLATES));
+        // pedal.project beside this repo is where the templates live: a build without it (the image
+        // build's container) has nothing to check them against.
+        if (!file.exists())
+            QSKIP("no templates.json (pedal.project isn't beside this repo)");
         QVERIFY2(file.open(QIODevice::ReadOnly), RIGPA_TEMPLATES);
         // The catalogue's answer is the file's blocks as `templates`.
         const QJsonObject served{{"templates", QJsonDocument::fromJson(file.readAll()).object().value("blocks")}};
