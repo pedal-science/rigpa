@@ -17,8 +17,8 @@ How [spec.md](spec.md) gets built. Agreed 2026-10-09.
     page reorders the banks; the play line says what caused a change. `--input U`/`Y` are Undo and
     Redo (`1c6fc8d`).
   - [spec.md](spec.md)'s Data, Saving and "Following other clients" say how it works now.
-  - **Still to do by eye on the panel:** its rotation (0 or 180), touch landing where touched, and
-    legibility from standing.
+  - **Checked by eye on the pedal (Rik, 2026-11-09):** the panel works, reads well and is rotated
+    correctly.
 - **The tuner (2026-10-20).** namchain grew `nc.tuner` — squatch-dsp's tuner as a node whose output is
   silence — and a schema flag, `flags.in_palette: false`, that says a type is not a block. rigpa
   turns that into the pedal's tuner: a **main view** from the menu button directly above Settings,
